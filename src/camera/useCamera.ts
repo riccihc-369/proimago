@@ -124,9 +124,14 @@ export function useCamera(): UseCameraResult {
       id: `${Date.now()}`,
       dataUrl: canvas.toDataURL('image/jpeg', 0.88),
       timestamp: Date.now(),
-      mode: payload.mode,
+      categoryId: payload.categoryId,
+      brightness: payload.brightness,
+      contrast: payload.contrast,
+      saturation: payload.saturation,
+      colorTemperatureHint: payload.colorTemperatureHint,
       score: payload.score,
       suggestion: payload.suggestion,
+      renderingAdvice: payload.renderingAdvice,
     }
   }
 

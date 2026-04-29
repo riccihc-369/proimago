@@ -76,8 +76,9 @@ export function useStableSuggestion(
 function areSameSuggestion(currentSuggestion: Suggestion, nextSuggestion: Suggestion) {
   return (
     currentSuggestion.id === nextSuggestion.id &&
-    currentSuggestion.message === nextSuggestion.message &&
+    currentSuggestion.text === nextSuggestion.text &&
     currentSuggestion.severity === nextSuggestion.severity &&
+    currentSuggestion.family === nextSuggestion.family &&
     currentSuggestion.priority === nextSuggestion.priority &&
     currentSuggestion.holdMs === nextSuggestion.holdMs
   )

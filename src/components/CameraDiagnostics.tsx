@@ -5,6 +5,7 @@ interface CameraDiagnosticsProps {
   analysis: FrameAnalysis
   cameraInfo: CameraTrackInfo | null
   intervalMs: number
+  isFieldActive: boolean
   videoHeight: number
   videoWidth: number
 }
@@ -13,6 +14,7 @@ export function CameraDiagnostics({
   analysis,
   cameraInfo,
   intervalMs,
+  isFieldActive,
   videoHeight,
   videoWidth,
 }: CameraDiagnosticsProps) {
@@ -21,20 +23,23 @@ export function CameraDiagnostics({
     videoWidth > 0 && videoHeight > 0 ? (videoWidth / videoHeight).toFixed(2) : '--'
   const cameraLabel = cameraInfo?.facingMode ?? cameraInfo?.label ?? 'n/d'
   const capabilities = cameraInfo?.capabilities
+  const effectiveOpen = isOpen && !isFieldActive
+  const colorHint = analysis.colorTemperatureHint ?? '--'
 
   return (
-    <section className={`diagnostics-panel ${isOpen ? 'open' : ''}`}>
+    <section className={`diagnostics-panel ${effectiveOpen ? 'open' : ''}`}>
       <button
         type="button"
         className="diagnostics-toggle"
         onClick={() => setIsOpen((current) => !current)}
-        aria-expanded={isOpen}
+        aria-expanded={effectiveOpen}
+        disabled={isFieldActive}
       >
         <span>Camera Info</span>
-        <span>{isOpen ? 'Nascondi' : 'Mostra'}</span>
+        <span>{isFieldActive ? 'Field mode' : effectiveOpen ? 'Nascondi' : 'Mostra'}</span>
       </button>
 
-      {isOpen ? (
+      {effectiveOpen ? (
         <div className="diagnostics-body">
           <div className="diagnostics-grid">
             <DiagnosticItem label="Camera attiva" value={cameraLabel} />
@@ -43,14 +48,12 @@ export function CameraDiagnostics({
               value={videoWidth > 0 && videoHeight > 0 ? `${videoWidth} x ${videoHeight}` : '--'}
             />
             <DiagnosticItem label="Aspect ratio" value={aspectRatio} />
-            <DiagnosticItem label="Analysis interval" value={`${intervalMs} ms`} />
-            <DiagnosticItem label="Luminosita media" value={`${analysis.brightnessPercent}%`} />
+            <DiagnosticItem label="Intervallo analisi" value={`${intervalMs} ms`} />
+            <DiagnosticItem label="Luminosita media" value={`${analysis.brightness}%`} />
             <DiagnosticItem label="Contrasto" value={`${analysis.contrast}%`} />
+            <DiagnosticItem label="Saturazione" value={`${analysis.saturation}%`} />
             <DiagnosticItem label="Score" value={`${analysis.score}`} />
-            <DiagnosticItem
-              label="Facing mode"
-              value={cameraInfo?.facingMode ?? 'non esposto'}
-            />
+            <DiagnosticItem label="Dominante" value={colorHint} />
           </div>
 
           <div className="diagnostics-capabilities">

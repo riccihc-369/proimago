@@ -1,4 +1,4 @@
-import type { FrameAnalysis, Point } from '../types'
+import type { ColorTemperatureHint, FrameAnalysis, Point } from '../types'
 
 const SAMPLE_WIDTH = 48
 const SAMPLE_HEIGHT = 64
@@ -7,16 +7,14 @@ export const FRAME_ANALYSIS_INTERVAL_MS = 700
 
 export const EMPTY_FRAME_ANALYSIS: FrameAnalysis = {
   brightness: 0,
-  brightnessPercent: 0,
   contrast: 0,
+  saturation: 0,
+  colorTemperatureHint: undefined,
+  dominantWeight: 0,
+  topEmptySpace: 0,
+  score: 0,
   dominantPoint: { x: 0.5, y: 0.5 },
   dominantSpread: 0,
-  isTooCentral: false,
-  topEmptyRatio: 0,
-  isTopTooEmpty: false,
-  isTooDark: false,
-  isTooFlat: false,
-  score: 0,
   detectedSubjects: undefined,
 }
 
@@ -35,7 +33,11 @@ export function analyzeFrame(
 
   const imageData = context.getImageData(0, 0, SAMPLE_WIDTH, SAMPLE_HEIGHT)
   const luminance = new Float32Array(SAMPLE_WIDTH * SAMPLE_HEIGHT)
-  let brightnessSum = 0
+  let luminanceSum = 0
+  let saturationSum = 0
+  let redSum = 0
+  let greenSum = 0
+  let blueSum = 0
 
   for (let index = 0; index < luminance.length; index += 1) {
     const pixelIndex = index * 4
@@ -44,11 +46,21 @@ export function analyzeFrame(
     const blue = imageData.data[pixelIndex + 2]
     const value = red * 0.2126 + green * 0.7152 + blue * 0.0722
     luminance[index] = value
-    brightnessSum += value
+    luminanceSum += value
+    saturationSum += getPixelSaturation(red, green, blue)
+    redSum += red
+    greenSum += green
+    blueSum += blue
   }
 
-  const brightness = brightnessSum / luminance.length
-  const brightnessPercent = Math.round((brightness / 255) * 100)
+  const pixelCount = luminance.length
+  const averageLuminance = luminanceSum / pixelCount
+  const brightness = Math.round((averageLuminance / 255) * 100)
+  const saturation = Math.round((saturationSum / pixelCount) * 100)
+  const averageRed = redSum / pixelCount
+  const averageGreen = greenSum / pixelCount
+  const averageBlue = blueSum / pixelCount
+
   let varianceSum = 0
   let minLuma = 255
   let maxLuma = 0
@@ -61,7 +73,7 @@ export function analyzeFrame(
     for (let x = 0; x < SAMPLE_WIDTH; x += 1) {
       const index = y * SAMPLE_WIDTH + x
       const value = luminance[index]
-      varianceSum += (value - brightness) ** 2
+      varianceSum += (value - averageLuminance) ** 2
       minLuma = Math.min(minLuma, value)
       maxLuma = Math.max(maxLuma, value)
 
@@ -78,8 +90,8 @@ export function analyzeFrame(
     }
   }
 
-  const stdDeviation = Math.sqrt(varianceSum / luminance.length)
-  const contrast = Math.min(100, ((maxLuma - minLuma) / 255) * 100)
+  const stdDeviation = Math.sqrt(varianceSum / pixelCount)
+  const contrast = Math.round(Math.min(100, ((maxLuma - minLuma) / 255) * 100))
   const dominantPoint: Point =
     totalEnergy > 0
       ? {
@@ -89,38 +101,74 @@ export function analyzeFrame(
       : { x: 0.5, y: 0.5 }
 
   const centerDistance = Math.hypot(dominantPoint.x - 0.5, dominantPoint.y - 0.5)
-  const isTooCentral = centerDistance < 0.16
-  const dominantSpread = clamp(0.18 + stdDeviation / 180, 0.18, 0.4)
-  const topEmptyRatio = totalEnergy > 0 ? clamp(topEnergy / totalEnergy, 0, 1) : 0
-  const isTopTooEmpty = topEmptyRatio < 0.16
-  const isTooDark = brightness < 72
-  const isTooFlat = contrast < 24 || stdDeviation < 20
+  const dominantSpread = clamp(0.18 + stdDeviation / 180, 0.18, 0.42)
+  const dominantWeight = Math.round(
+    clamp(((1 - dominantSpread) * 100 + contrast * 0.4) / 1.4, 0, 100),
+  )
+  const topEnergyShare = totalEnergy > 0 ? clamp(topEnergy / totalEnergy, 0, 1) : 0
+  const topEmptySpace = Math.round(
+    clamp((1 - clamp(topEnergyShare / 0.28, 0, 1)) * 100, 0, 100),
+  )
 
-  let score = 76
-  score -= Math.max(0, 16 - Math.round(centerDistance * 100 * 0.9))
-  score -= isTooCentral ? 14 : 0
-  score -= isTopTooEmpty ? 10 : 0
-  score -= isTooDark ? 16 : 0
-  score -= isTooFlat ? 12 : 0
-  score += brightness > 95 && brightness < 180 ? 6 : 0
-  score += contrast > 34 ? 6 : 0
+  let score = 78
+  score -= brightness < 28 ? 18 : brightness < 38 ? 8 : 0
+  score -= contrast < 22 ? 12 : 0
+  score -= saturation < 14 ? 8 : saturation > 82 ? 5 : 0
+  score -= centerDistance < 0.16 ? 12 : 0
+  score -= topEmptySpace > 62 ? 10 : 0
+  score += brightness >= 38 && brightness <= 72 ? 6 : 0
+  score += contrast >= 28 && contrast <= 60 ? 5 : 0
+  score += saturation >= 18 && saturation <= 62 ? 4 : 0
+  score += centerDistance >= 0.16 && centerDistance <= 0.34 ? 4 : 0
   score = clamp(Math.round(score), 0, 100)
 
   return {
-    brightness: Math.round(brightness),
-    brightnessPercent,
-    contrast: Math.round(contrast),
+    brightness,
+    contrast,
+    saturation,
+    colorTemperatureHint: getColorTemperatureHint(averageRed, averageGreen, averageBlue, saturation),
+    dominantWeight,
+    topEmptySpace,
+    score,
     dominantPoint,
     dominantSpread,
-    isTooCentral,
-    topEmptyRatio,
-    isTopTooEmpty,
-    isTooDark,
-    isTooFlat,
-    score,
     // TODO: Merge MediaPipe/object detection subjects into this analysis in V0.2.
     detectedSubjects: undefined,
   }
+}
+
+function getPixelSaturation(red: number, green: number, blue: number) {
+  const maxChannel = Math.max(red, green, blue)
+  const minChannel = Math.min(red, green, blue)
+  if (maxChannel === 0) {
+    return 0
+  }
+
+  return (maxChannel - minChannel) / maxChannel
+}
+
+function getColorTemperatureHint(
+  averageRed: number,
+  averageGreen: number,
+  averageBlue: number,
+  saturation: number,
+): ColorTemperatureHint {
+  const warmBias = averageRed - averageBlue
+  const neutralBand = Math.abs(warmBias) < 14 || saturation < 12
+
+  if (neutralBand) {
+    return 'neutral'
+  }
+
+  if (warmBias > 0 && averageRed >= averageGreen * 0.94) {
+    return 'warm'
+  }
+
+  if (warmBias < 0 && averageBlue >= averageGreen * 0.96) {
+    return 'cool'
+  }
+
+  return 'neutral'
 }
 
 function clamp(value: number, min: number, max: number) {

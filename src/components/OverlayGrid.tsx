@@ -1,17 +1,18 @@
-import type { CompositionMode, FrameAnalysis, Suggestion } from '../types'
+import type { FrameAnalysis, PhotoCategory, Suggestion } from '../types'
 
 interface OverlayGridProps {
-  mode: CompositionMode
+  category: PhotoCategory
   analysis: FrameAnalysis
   suggestion: Suggestion
 }
 
-export function OverlayGrid({ mode, analysis, suggestion }: OverlayGridProps) {
-  const zoneSize = Math.round(50 + analysis.dominantSpread * 140)
-  const brightnessTone = getMetricTone(analysis.brightnessPercent, 28, 46)
+export function OverlayGrid({ category, analysis, suggestion }: OverlayGridProps) {
+  const zoneSize = Math.round(44 + analysis.dominantSpread * 128)
+  const brightnessTone = getMetricTone(analysis.brightness, 28, 46)
   const contrastTone = getMetricTone(analysis.contrast, 24, 42)
-  const balanceTone = analysis.isTooCentral ? 'warn' : 'good'
-  const spaceTone = analysis.isTopTooEmpty ? 'warn' : 'good'
+  const saturationTone = getSaturationTone(analysis.saturation)
+  const compositionMetric = getCompositionMetric(analysis)
+  const badgeLabel = category.shortLabel ?? category.label
 
   return (
     <div className="overlay-root" aria-hidden="true">
@@ -38,7 +39,7 @@ export function OverlayGrid({ mode, analysis, suggestion }: OverlayGridProps) {
       </div>
 
       <div className="overlay-topbar">
-        <div className="mode-badge">{mode}</div>
+        <div className="mode-badge">{`Categoria: ${badgeLabel}`}</div>
 
         <div className="score-pill">
           <div className="score-pill-row">
@@ -59,48 +60,32 @@ export function OverlayGrid({ mode, analysis, suggestion }: OverlayGridProps) {
           <div className="suggestion-heading">
             <strong>Suggerimento</strong>
             <span className={`severity-badge ${suggestion.severity}`}>
-              {suggestion.severity}
+              {suggestion.family}
             </span>
           </div>
-          <p>{suggestion.message}</p>
+          <p>{suggestion.text}</p>
         </div>
 
-        <div className="metric-row">
-          <MetricCard
-            label="Luce"
-            value={`${analysis.brightnessPercent}%`}
-            tone={brightnessTone}
-          />
-          <MetricCard
-            label="Contrasto"
-            value={`${analysis.contrast}%`}
-            tone={contrastTone}
-          />
-          <MetricCard
-            label="Bilanciamento"
-            value={analysis.isTooCentral ? 'Centrale' : 'Buono'}
-            tone={balanceTone}
-          />
-          <MetricCard
-            label="Spazio alto"
-            value={analysis.isTopTooEmpty ? 'Troppo' : 'Ok'}
-            tone={spaceTone}
-          />
+        <div className="metric-strip">
+          <MetricPill label="Composizione" value={compositionMetric.value} tone={compositionMetric.tone} />
+          <MetricPill label="Luce" value={`${analysis.brightness}%`} tone={brightnessTone} />
+          <MetricPill label="Contrasto" value={`${analysis.contrast}%`} tone={contrastTone} />
+          <MetricPill label="Saturazione" value={`${analysis.saturation}%`} tone={saturationTone} />
         </div>
       </div>
     </div>
   )
 }
 
-interface MetricCardProps {
+interface MetricPillProps {
   label: string
   value: string
   tone: 'good' | 'warn' | 'bad'
 }
 
-function MetricCard({ label, value, tone }: MetricCardProps) {
+function MetricPill({ label, value, tone }: MetricPillProps) {
   return (
-    <div className={`metric-card ${tone}`}>
+    <div className={`metric-pill ${tone}`}>
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
@@ -117,4 +102,37 @@ function getMetricTone(value: number, warnThreshold: number, goodThreshold: numb
   }
 
   return 'good' as const
+}
+
+function getSaturationTone(value: number) {
+  if (value < 14 || value > 82) {
+    return 'bad' as const
+  }
+
+  if (value < 24 || value > 70) {
+    return 'warn' as const
+  }
+
+  return 'good' as const
+}
+
+function getCompositionMetric(analysis: FrameAnalysis) {
+  const centerDistance = Math.hypot(
+    analysis.dominantPoint.x - 0.5,
+    analysis.dominantPoint.y - 0.5,
+  )
+
+  if (centerDistance < 0.16) {
+    return { value: 'Centrale', tone: 'warn' as const }
+  }
+
+  if (analysis.topEmptySpace > 62) {
+    return { value: 'Da chiudere', tone: 'warn' as const }
+  }
+
+  if (analysis.score > 72) {
+    return { value: 'Buona', tone: 'good' as const }
+  }
+
+  return { value: 'Equilibrata', tone: 'good' as const }
 }

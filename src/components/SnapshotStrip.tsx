@@ -1,12 +1,14 @@
+import { PHOTO_CATEGORY_BY_ID } from '../analysis/photoCategories'
 import type { SnapshotItem } from '../types'
 
 interface SnapshotStripProps {
   snapshots: SnapshotItem[]
+  isFieldActive: boolean
 }
 
-export function SnapshotStrip({ snapshots }: SnapshotStripProps) {
+export function SnapshotStrip({ snapshots, isFieldActive }: SnapshotStripProps) {
   return (
-    <section className="snapshot-strip">
+    <section className={`snapshot-strip ${isFieldActive ? 'field' : ''}`}>
       <div className="snapshot-strip-header">
         <h2>Anteprime salvate</h2>
         <p>{snapshots.length}/12 in memoria</p>
@@ -14,7 +16,9 @@ export function SnapshotStrip({ snapshots }: SnapshotStripProps) {
 
       {snapshots.length === 0 ? (
         <div className="snapshot-empty">
-          Scatta una preview per confrontare le composizioni senza uscire dal live view.
+          {isFieldActive
+            ? 'Nessuna anteprima ancora.'
+            : 'Scatta una preview per confrontare le composizioni senza uscire dal live view.'}
         </div>
       ) : (
         <div className="snapshot-list">
@@ -26,11 +30,17 @@ export function SnapshotStrip({ snapshots }: SnapshotStripProps) {
               />
               <div className="snapshot-meta">
                 <div className="snapshot-tags">
-                  <span className="snapshot-chip">{snapshot.mode}</span>
+                  <span className="snapshot-chip">
+                    {PHOTO_CATEGORY_BY_ID[snapshot.categoryId].shortLabel ??
+                      PHOTO_CATEGORY_BY_ID[snapshot.categoryId].label}
+                  </span>
                   <span className="snapshot-chip">Score {snapshot.score}</span>
                 </div>
                 <strong>{formatTimestamp(snapshot.timestamp)}</strong>
-                <span className="snapshot-suggestion">{snapshot.suggestion.message}</span>
+                <span className="snapshot-readout">
+                  {`L ${snapshot.brightness} · C ${snapshot.contrast} · S ${snapshot.saturation}`}
+                </span>
+                <span className="snapshot-suggestion">{snapshot.suggestion.text}</span>
               </div>
             </article>
           ))}

@@ -5,6 +5,11 @@ import {
   EMPTY_FRAME_ANALYSIS,
   FRAME_ANALYSIS_INTERVAL_MS,
 } from './analysis/frameAnalyzer'
+import {
+  getNextPhotoCategoryId,
+  PHOTO_CATEGORIES,
+  PHOTO_CATEGORY_BY_ID,
+} from './analysis/photoCategories'
 import { createSuggestion } from './analysis/suggestionEngine'
 import { useStableSuggestion } from './analysis/useStableSuggestion'
 import { useCamera } from './camera/useCamera'
@@ -15,29 +20,21 @@ import { OverlayGrid } from './components/OverlayGrid'
 import { SnapshotStrip } from './components/SnapshotStrip'
 import type {
   CameraStatus,
-  CompositionMode,
   FrameAnalysis,
+  PhotoCategoryId,
   SnapshotItem,
 } from './types'
-
-const MODES: CompositionMode[] = [
-  'Auto',
-  'Architettura',
-  'Ritratto',
-  'Prodotto',
-  'Paesaggio',
-]
 
 function App() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const analysisCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const [modeIndex, setModeIndex] = useState(0)
+  const [activeCategoryId, setActiveCategoryId] = useState<PhotoCategoryId>('auto')
   const [analysis, setAnalysis] = useState<FrameAnalysis>(EMPTY_FRAME_ANALYSIS)
   const [snapshots, setSnapshots] = useState<SnapshotItem[]>([])
   const [videoReady, setVideoReady] = useState(false)
   const [videoMetrics, setVideoMetrics] = useState({ width: 0, height: 0 })
 
-  const mode = MODES[modeIndex]
+  const activeCategory = PHOTO_CATEGORY_BY_ID[activeCategoryId]
   const {
     status,
     error,
@@ -118,18 +115,26 @@ function App() {
   }, [status, videoReady])
 
   const rawSuggestion = useMemo(
-    () => createSuggestion(mode, visibleAnalysis),
-    [mode, visibleAnalysis],
+    () => createSuggestion(activeCategory, visibleAnalysis, status),
+    [activeCategory, status, visibleAnalysis],
   )
   const stableSuggestion = useStableSuggestion(rawSuggestion, cameraReady)
 
-  const handleCycleMode = () => {
-    setModeIndex((currentIndex) => (currentIndex + 1) % MODES.length)
+  const handleCycleCategory = () => {
+    setActiveCategoryId((currentId) => getNextPhotoCategoryId(currentId))
+  }
+
+  const handleSelectCategory = (nextCategoryId: PhotoCategoryId) => {
+    setActiveCategoryId(nextCategoryId)
   }
 
   const handleCapture = () => {
     const snapshot = captureSnapshot(videoRef.current, {
-      mode,
+      categoryId: activeCategory.id,
+      brightness: visibleAnalysis.brightness,
+      contrast: visibleAnalysis.contrast,
+      saturation: visibleAnalysis.saturation,
+      colorTemperatureHint: visibleAnalysis.colorTemperatureHint,
       score: visibleAnalysis.score,
       suggestion: stableSuggestion,
     })
@@ -155,7 +160,7 @@ function App() {
   const statusLabel = getStatusLabel(status, error, isSupported)
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell ${cameraReady ? 'is-field-active' : ''}`}>
       <section className="camera-stage">
         <CameraView
           videoRef={videoRef}
@@ -165,32 +170,38 @@ function App() {
           statusLabel={statusLabel}
         />
         <OverlayGrid
-          mode={mode}
+          category={activeCategory}
           analysis={visibleAnalysis}
           suggestion={stableSuggestion}
         />
       </section>
 
-      <ControlPanel
-        mode={mode}
-        canStart={isSupported && status !== 'requesting' && status !== 'ready'}
-        canStop={status === 'ready' || status === 'requesting'}
-        canCapture={cameraReady}
-        onStart={handleStartCamera}
-        onStop={handleStopCamera}
-        onCycleMode={handleCycleMode}
-        onCapture={handleCapture}
-      />
+      <section className="bottom-stack">
+        <ControlPanel
+          category={activeCategory}
+          categories={PHOTO_CATEGORIES}
+          isFieldActive={cameraReady}
+          canStart={isSupported && status !== 'requesting' && status !== 'ready'}
+          canStop={status === 'ready' || status === 'requesting'}
+          canCapture={cameraReady}
+          onStart={handleStartCamera}
+          onStop={handleStopCamera}
+          onCycleCategory={handleCycleCategory}
+          onSelectCategory={handleSelectCategory}
+          onCapture={handleCapture}
+        />
 
-      <CameraDiagnostics
-        analysis={visibleAnalysis}
-        cameraInfo={cameraInfo}
-        intervalMs={FRAME_ANALYSIS_INTERVAL_MS}
-        videoWidth={videoMetrics.width}
-        videoHeight={videoMetrics.height}
-      />
+        <CameraDiagnostics
+          analysis={visibleAnalysis}
+          cameraInfo={cameraInfo}
+          intervalMs={FRAME_ANALYSIS_INTERVAL_MS}
+          isFieldActive={cameraReady}
+          videoWidth={videoMetrics.width}
+          videoHeight={videoMetrics.height}
+        />
 
-      <SnapshotStrip snapshots={snapshots} />
+        <SnapshotStrip snapshots={snapshots} isFieldActive={cameraReady} />
+      </section>
       <canvas ref={analysisCanvasRef} className="analysis-canvas" aria-hidden="true" />
     </main>
   )

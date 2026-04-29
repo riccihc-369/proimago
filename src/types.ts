@@ -1,15 +1,38 @@
-export type CompositionMode =
-  | 'Auto'
-  | 'Architettura'
-  | 'Ritratto'
-  | 'Prodotto'
-  | 'Paesaggio'
+export type PhotoCategoryId =
+  | 'auto'
+  | 'architecture'
+  | 'monuments'
+  | 'portrait'
+  | 'landscape'
+  | 'plants'
+  | 'animals'
+  | 'product'
+  | 'interiors'
+  | 'food'
+  | 'street'
+  | 'detail'
+  | 'technical_documentation'
 
-export type AppMode = CompositionMode
+export interface PhotoCategory {
+  id: PhotoCategoryId
+  label: string
+  shortLabel?: string
+  description: string
+  priorityRules?: string[]
+}
 
 export type CameraStatus = 'idle' | 'requesting' | 'ready'
 
 export type SuggestionSeverity = 'info' | 'improve' | 'warning' | 'good'
+
+export type SuggestionFamily =
+  | 'composition'
+  | 'light'
+  | 'color'
+  | 'framing'
+  | 'category'
+
+export type ColorTemperatureHint = 'cool' | 'neutral' | 'warm'
 
 export interface Point {
   x: number
@@ -31,43 +54,56 @@ export interface DetectedSubject {
 
 export interface FrameAnalysis {
   brightness: number
-  brightnessPercent: number
   contrast: number
+  saturation: number
+  colorTemperatureHint?: ColorTemperatureHint
+  dominantWeight: number
+  topEmptySpace: number
+  score: number
   dominantPoint: Point
   dominantSpread: number
-  isTooCentral: boolean
-  topEmptyRatio: number
-  isTopTooEmpty: boolean
-  isTooDark: boolean
-  isTooFlat: boolean
-  score: number
   // TODO: Populate detectedSubjects from MediaPipe/object detection in V0.2.
   detectedSubjects?: DetectedSubject[]
 }
 
-export type AnalysisResult = FrameAnalysis
-
 export interface Suggestion {
   id: string
-  message: string
+  text: string
   severity: SuggestionSeverity
+  family: SuggestionFamily
   priority: number
   holdMs?: number
 }
 
+export interface RenderingAdvice {
+  family?: SuggestionFamily
+  note?: string
+  colorTemperatureHint?: ColorTemperatureHint
+}
+
 export interface SnapshotCapturePayload {
-  mode: CompositionMode
+  categoryId: PhotoCategoryId
+  brightness: number
+  contrast: number
+  saturation: number
+  colorTemperatureHint?: ColorTemperatureHint
   score: number
   suggestion: Suggestion
+  renderingAdvice?: RenderingAdvice
 }
 
 export interface SnapshotItem {
   id: string
   dataUrl: string
   timestamp: number
-  mode: CompositionMode
+  categoryId: PhotoCategoryId
+  brightness: number
+  contrast: number
+  saturation: number
+  colorTemperatureHint?: ColorTemperatureHint
   score: number
   suggestion: Suggestion
+  renderingAdvice?: RenderingAdvice
 }
 
 export interface CameraNumericCapability {
