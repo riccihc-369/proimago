@@ -25,7 +25,7 @@ export type CameraStatus = 'idle' | 'requesting' | 'ready'
 
 export type HudState = 'idle' | 'controls' | 'detail'
 
-export type DetailPanelId = 'category' | 'snapshots' | 'tools'
+export type DetailPanelId = 'category' | 'tools'
 
 export type SuggestionSeverity = 'info' | 'improve' | 'warning' | 'good'
 
@@ -87,31 +87,48 @@ export interface RenderingAdvice {
   colorTemperatureHint?: ColorTemperatureHint
 }
 
+export interface SnapshotCameraSettings {
+  zoom?: number
+  facingMode?: string
+  width?: number
+  height?: number
+  frameRate?: number
+}
+
 export interface SnapshotCapturePayload {
   categoryId: PhotoCategoryId
+  categoryLabel: string
   brightness: number
   contrast: number
   saturation: number
-  sharpness: number
+  sharpness?: number
   colorTemperatureHint?: ColorTemperatureHint
   score: number
-  suggestion: Suggestion
-  renderingAdvice?: RenderingAdvice
+  suggestionText: string
+  suggestionFamily: SuggestionFamily
+  suggestionSeverity: SuggestionSeverity
+  cameraSettings?: SnapshotCameraSettings
 }
 
 export interface SnapshotItem {
   id: string
-  dataUrl: string
-  timestamp: number
+  imageDataUrl: string
+  thumbnailDataUrl?: string
+  createdAt: number
   categoryId: PhotoCategoryId
+  categoryLabel: string
+  score: number
+  suggestionText: string
+  suggestionFamily: SuggestionFamily
+  suggestionSeverity: SuggestionSeverity
   brightness: number
   contrast: number
   saturation: number
-  sharpness: number
+  sharpness?: number
   colorTemperatureHint?: ColorTemperatureHint
-  score: number
-  suggestion: Suggestion
-  renderingAdvice?: RenderingAdvice
+  isFavorite: boolean
+  note?: string
+  cameraSettings?: SnapshotCameraSettings
 }
 
 export interface CameraNumericCapability {

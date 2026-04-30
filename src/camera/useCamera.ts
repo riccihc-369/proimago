@@ -10,6 +10,7 @@ import type {
   CameraSettingsInfo,
   CameraTrackInfo,
   SnapshotCapturePayload,
+  SnapshotCameraSettings,
   SnapshotItem,
 } from '../types'
 
@@ -141,19 +142,29 @@ export function useCamera(): UseCameraResult {
     }
 
     context.drawImage(videoElement, 0, 0, width, height)
+    const thumbnailDataUrl = createSnapshotThumbnail(canvas, width, height)
+    const cameraSettings = payload.cameraSettings ?? getSnapshotCameraSettings(cameraInfo)
+    const createdAt = Date.now()
+
     return {
-      id: `${Date.now()}`,
-      dataUrl: canvas.toDataURL('image/jpeg', 0.88),
-      timestamp: Date.now(),
+      id: `${createdAt}-${Math.random().toString(36).slice(2, 8)}`,
+      imageDataUrl: canvas.toDataURL('image/jpeg', 0.75),
+      thumbnailDataUrl,
+      createdAt,
       categoryId: payload.categoryId,
+      categoryLabel: payload.categoryLabel,
+      score: payload.score,
+      suggestionText: payload.suggestionText,
+      suggestionFamily: payload.suggestionFamily,
+      suggestionSeverity: payload.suggestionSeverity,
       brightness: payload.brightness,
       contrast: payload.contrast,
       saturation: payload.saturation,
       sharpness: payload.sharpness,
       colorTemperatureHint: payload.colorTemperatureHint,
-      score: payload.score,
-      suggestion: payload.suggestion,
-      renderingAdvice: payload.renderingAdvice,
+      isFavorite: false,
+      note: undefined,
+      cameraSettings,
     }
   }
 
@@ -298,6 +309,72 @@ function getUnsupportedControlResult(): CameraControlResult {
     error:
       'Controllo non disponibile in questo browser. PROimago puo comunque suggerire come usare la lente o cambiare angolo.',
   }
+}
+
+function getSnapshotCameraSettings(
+  cameraInfo: CameraTrackInfo | null,
+): SnapshotCameraSettings | undefined {
+  if (!cameraInfo) {
+    return undefined
+  }
+
+  const settings = cameraInfo.settings
+  const controlSupport = cameraInfo.controlSupport
+  const snapshotSettings: SnapshotCameraSettings = {
+    zoom:
+      typeof controlSupport.currentZoom === 'number'
+        ? controlSupport.currentZoom
+        : typeof settings?.zoom === 'number'
+          ? settings.zoom
+          : undefined,
+    facingMode: controlSupport.facingMode ?? settings?.facingMode ?? undefined,
+    width:
+      typeof controlSupport.width === 'number'
+        ? Math.round(controlSupport.width)
+        : typeof settings?.width === 'number'
+          ? Math.round(settings.width)
+          : undefined,
+    height:
+      typeof controlSupport.height === 'number'
+        ? Math.round(controlSupport.height)
+        : typeof settings?.height === 'number'
+          ? Math.round(settings.height)
+          : undefined,
+    frameRate:
+      typeof controlSupport.frameRate === 'number'
+        ? controlSupport.frameRate
+        : typeof settings?.frameRate === 'number'
+          ? settings.frameRate
+          : undefined,
+  }
+
+  return Object.values(snapshotSettings).some((value) => value !== undefined)
+    ? snapshotSettings
+    : undefined
+}
+
+function createSnapshotThumbnail(
+  sourceCanvas: HTMLCanvasElement,
+  width: number,
+  height: number,
+) {
+  if (!width || !height) {
+    return undefined
+  }
+
+  const targetWidth = Math.min(width, 320)
+  const targetHeight = Math.max(1, Math.round((height / width) * targetWidth))
+  const thumbnailCanvas = document.createElement('canvas')
+  thumbnailCanvas.width = targetWidth
+  thumbnailCanvas.height = targetHeight
+  const thumbnailContext = thumbnailCanvas.getContext('2d')
+
+  if (!thumbnailContext) {
+    return undefined
+  }
+
+  thumbnailContext.drawImage(sourceCanvas, 0, 0, targetWidth, targetHeight)
+  return thumbnailCanvas.toDataURL('image/jpeg', 0.68)
 }
 
 function stopTracks(stream: MediaStream | null) {

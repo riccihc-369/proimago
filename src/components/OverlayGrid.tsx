@@ -3,14 +3,18 @@ import type { FrameAnalysis, HudState, PhotoCategory, Suggestion } from '../type
 interface OverlayGridProps {
   analysis: FrameAnalysis
   category: PhotoCategory
+  hasReferencePreview?: boolean
   hudState: HudState
+  referenceHint?: string | null
   suggestion: Suggestion
 }
 
 export function OverlayGrid({
   analysis,
   category,
+  hasReferencePreview = false,
   hudState,
+  referenceHint = null,
   suggestion,
 }: OverlayGridProps) {
   const trackerSize = Math.round(24 + analysis.dominantSpread * 64)
@@ -36,7 +40,12 @@ export function OverlayGrid({
       </div>
 
       <div className="overlay-topbar">
-        <div className="mode-badge">{category.shortLabel ?? category.label}</div>
+        <div className="overlay-topstack">
+          <div className="mode-badge">{category.shortLabel ?? category.label}</div>
+          {hasReferencePreview ? (
+            <div className="reference-pill">Riferimento attivo</div>
+          ) : null}
+        </div>
         <div className={`score-chip ${getScoreTone(analysis.score)}`}>
           <span>Score</span>
           <strong>{analysis.score}</strong>
@@ -44,6 +53,13 @@ export function OverlayGrid({
       </div>
 
       <div className="overlay-bottom">
+        {referenceHint && hudState === 'controls' ? (
+          <div className="reference-strip">
+            <strong>Riferimento</strong>
+            <p>{referenceHint}</p>
+          </div>
+        ) : null}
+
         <div className={`suggestion-strip ${suggestion.severity}`}>
           <div className="suggestion-strip-header">
             <strong>Suggerimento</strong>

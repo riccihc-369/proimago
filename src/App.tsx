@@ -6,6 +6,7 @@ import {
   FRAME_ANALYSIS_INTERVAL_MS,
 } from './analysis/frameAnalyzer'
 import { PHOTO_CATEGORIES, PHOTO_CATEGORY_BY_ID } from './analysis/photoCategories'
+import { getReferencePreviewHint } from './analysis/previewDecision'
 import { createSuggestion } from './analysis/suggestionEngine'
 import { useStableSuggestion } from './analysis/useStableSuggestion'
 import { useCamera } from './camera/useCamera'
@@ -22,6 +23,7 @@ import type {
 } from './types'
 
 const HUD_IDLE_TIMEOUT_MS = 3000
+const MAX_PREVIEWS = 24
 
 function App() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -34,6 +36,8 @@ function App() {
   const [videoMetrics, setVideoMetrics] = useState({ width: 0, height: 0 })
   const [detailPanel, setDetailPanel] = useState<DetailPanelId | null>(null)
   const [areControlsVisible, setAreControlsVisible] = useState(true)
+  const [selectedReferencePreviewId, setSelectedReferencePreviewId] = useState<string | null>(null)
+  const [focusedPreviewId, setFocusedPreviewId] = useState<string | null>(null)
 
   const activeCategory = PHOTO_CATEGORY_BY_ID[activeCategoryId]
   const {
@@ -127,6 +131,14 @@ function App() {
     [activeCategory, status, visibleAnalysis],
   )
   const stableSuggestion = useStableSuggestion(rawSuggestion, cameraReady)
+  const selectedReferencePreview = useMemo(
+    () =>
+      snapshots.find((snapshot) => snapshot.id === selectedReferencePreviewId) ?? null,
+    [selectedReferencePreviewId, snapshots],
+  )
+  const referenceHint = selectedReferencePreview
+    ? getReferencePreviewHint(selectedReferencePreview)
+    : null
 
   const wakeHud = () => {
     if (hudIdleTimerRef.current !== null) {
@@ -168,11 +180,13 @@ function App() {
   }, [cameraReady, detailPanel])
 
   const handleOpenDetailPanel = (nextPanel: DetailPanelId) => {
+    setFocusedPreviewId(null)
     setDetailPanel(nextPanel)
     wakeHud()
   }
 
   const handleCloseDetailPanel = () => {
+    setFocusedPreviewId(null)
     setDetailPanel(null)
     wakeHud()
   }
@@ -185,19 +199,51 @@ function App() {
   const handleCapture = () => {
     const snapshot = captureSnapshot(videoRef.current, {
       categoryId: activeCategory.id,
+      categoryLabel: activeCategory.label,
       brightness: visibleAnalysis.brightness,
       contrast: visibleAnalysis.contrast,
       saturation: visibleAnalysis.saturation,
       sharpness: visibleAnalysis.sharpness,
       colorTemperatureHint: visibleAnalysis.colorTemperatureHint,
       score: visibleAnalysis.score,
-      suggestion: stableSuggestion,
+      suggestionText: stableSuggestion.text,
+      suggestionFamily: stableSuggestion.family,
+      suggestionSeverity: stableSuggestion.severity,
     })
     if (!snapshot) {
       return
     }
 
-    setSnapshots((current) => [snapshot, ...current].slice(0, 12))
+    setSnapshots((current) => appendPreview(current, snapshot))
+    wakeHud()
+  }
+
+  const handleOpenPreviewBoard = (previewId?: string) => {
+    setFocusedPreviewId(previewId ?? null)
+    setDetailPanel('tools')
+    wakeHud()
+  }
+
+  const handleToggleFavoritePreview = (previewId: string) => {
+    setSnapshots((current) =>
+      current.map((snapshot) =>
+        snapshot.id === previewId
+          ? { ...snapshot, isFavorite: !snapshot.isFavorite }
+          : snapshot,
+      ),
+    )
+    wakeHud()
+  }
+
+  const handleDeletePreview = (previewId: string) => {
+    setSnapshots((current) => current.filter((snapshot) => snapshot.id !== previewId))
+    setFocusedPreviewId((current) => (current === previewId ? null : current))
+    setSelectedReferencePreviewId((current) => (current === previewId ? null : current))
+    wakeHud()
+  }
+
+  const handleSelectReferencePreview = (previewId: string) => {
+    setSelectedReferencePreviewId(previewId)
     wakeHud()
   }
 
@@ -213,6 +259,7 @@ function App() {
     setVideoReady(false)
     setVideoMetrics({ width: 0, height: 0 })
     setDetailPanel(null)
+    setFocusedPreviewId(null)
     setAreControlsVisible(true)
   }
 
@@ -237,6 +284,8 @@ function App() {
             analysis={visibleAnalysis}
             hudState={hudState}
             suggestion={stableSuggestion}
+            hasReferencePreview={Boolean(selectedReferencePreview)}
+            referenceHint={referenceHint}
           />
         ) : null}
         <ControlPanel
@@ -248,9 +297,11 @@ function App() {
           canStop={status === 'ready' || status === 'requesting'}
           canCapture={cameraReady}
           detailPanel={detailPanel}
+          focusedPreviewId={focusedPreviewId}
           hudState={hudState}
           intervalMs={FRAME_ANALYSIS_INTERVAL_MS}
           isFieldActive={cameraReady}
+          selectedReferencePreviewId={selectedReferencePreviewId}
           snapshots={snapshots}
           status={status}
           suggestion={stableSuggestion}
@@ -265,13 +316,32 @@ function App() {
           onStop={handleStopCamera}
           onSelectCategory={handleSelectCategory}
           onCapture={handleCapture}
+          onDeletePreview={handleDeletePreview}
           onCloseDetailPanel={handleCloseDetailPanel}
           onOpenDetailPanel={handleOpenDetailPanel}
+          onOpenPreviewBoard={handleOpenPreviewBoard}
+          onSelectReferencePreview={handleSelectReferencePreview}
+          onToggleFavoritePreview={handleToggleFavoritePreview}
         />
       </section>
       <canvas ref={analysisCanvasRef} className="analysis-canvas" aria-hidden="true" />
     </main>
   )
+}
+
+function appendPreview(current: SnapshotItem[], nextPreview: SnapshotItem) {
+  const previews = [nextPreview, ...current]
+  if (previews.length <= MAX_PREVIEWS) {
+    return previews
+  }
+
+  for (let index = previews.length - 1; index >= 0; index -= 1) {
+    if (!previews[index].isFavorite) {
+      return previews.filter((_, previewIndex) => previewIndex !== index)
+    }
+  }
+
+  return previews.slice(0, MAX_PREVIEWS)
 }
 
 function getStatusLabel(

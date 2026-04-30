@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PHOTO_CATEGORY_BY_ID } from '../analysis/photoCategories'
+import { PreviewBoard } from './PreviewBoard'
 import type { CameraControlResult } from '../camera/cameraCapabilities'
 import type {
   CameraStatus,
@@ -22,14 +22,19 @@ interface ControlPanelProps {
   canStop: boolean
   canCapture: boolean
   detailPanel: DetailPanelId | null
+  focusedPreviewId: string | null
   hudState: HudState
   intervalMs: number
   isFieldActive: boolean
+  selectedReferencePreviewId: string | null
   snapshots: SnapshotItem[]
   status: CameraStatus
   suggestion: Suggestion
   videoHeight: number
   videoWidth: number
+  onDeletePreview: (previewId: string) => void
+  onOpenPreviewBoard: (previewId?: string) => void
+  onSelectReferencePreview: (previewId: string) => void
   onSetZoom: (value: number) => Promise<CameraControlResult>
   onSetTorch: (on: boolean) => Promise<CameraControlResult>
   onSetExposureCompensation: (value: number) => Promise<CameraControlResult>
@@ -41,6 +46,7 @@ interface ControlPanelProps {
   onCapture: () => void
   onCloseDetailPanel: () => void
   onOpenDetailPanel: (panelId: DetailPanelId) => void
+  onToggleFavoritePreview: (previewId: string) => void
 }
 
 export function ControlPanel({
@@ -52,14 +58,19 @@ export function ControlPanel({
   canStop,
   canCapture,
   detailPanel,
+  focusedPreviewId,
   hudState,
   intervalMs,
   isFieldActive,
+  selectedReferencePreviewId,
   snapshots,
   status,
   suggestion,
   videoHeight,
   videoWidth,
+  onDeletePreview,
+  onOpenPreviewBoard,
+  onSelectReferencePreview,
   onSetZoom,
   onSetTorch,
   onSetExposureCompensation,
@@ -71,6 +82,7 @@ export function ControlPanel({
   onCapture,
   onCloseDetailPanel,
   onOpenDetailPanel,
+  onToggleFavoritePreview,
 }: ControlPanelProps) {
   const isDetailOpen = detailPanel !== null
   const showSecondaryActions = hudState === 'controls'
@@ -83,30 +95,36 @@ export function ControlPanel({
   return (
     <section className={`hud-controls hud-${hudState}`} aria-label="Controlli live">
       {showSecondaryActions ? (
-        <div className="hud-quick-actions">
-          <button
-            type="button"
-            className="hud-quick-action"
-            onClick={() => onOpenDetailPanel('snapshots')}
-          >
-            Snapshot
-          </button>
-          <button
-            type="button"
-            className="hud-quick-action"
-            onClick={() => onOpenDetailPanel('tools')}
-          >
-            Strumenti
-          </button>
-          <button
-            type="button"
-            className={`hud-quick-action ${isFieldActive ? 'danger' : 'accent'}`}
-            onClick={isFieldActive ? onStop : () => void onStart()}
-            disabled={isFieldActive ? !canStop : !canStart}
-          >
-            {isFieldActive ? 'Stop camera' : 'Avvia camera'}
-          </button>
-        </div>
+        <>
+          <div className="hud-quick-actions">
+            <button
+              type="button"
+              className="hud-quick-action"
+              onClick={() => onOpenPreviewBoard()}
+            >
+              Anteprime
+            </button>
+            <button
+              type="button"
+              className="hud-quick-action"
+              onClick={() => onOpenDetailPanel('tools')}
+            >
+              Strumenti
+            </button>
+            <button
+              type="button"
+              className={`hud-quick-action ${isFieldActive ? 'danger' : 'accent'}`}
+              onClick={isFieldActive ? onStop : () => void onStart()}
+              disabled={isFieldActive ? !canStop : !canStart}
+            >
+              {isFieldActive ? 'Stop camera' : 'Avvia camera'}
+            </button>
+          </div>
+
+          {snapshots.length > 0 ? (
+            <PreviewQuickStrip previews={snapshots} onOpenPreview={onOpenPreviewBoard} />
+          ) : null}
+        </>
       ) : null}
 
       {isDetailOpen ? (
@@ -115,7 +133,7 @@ export function ControlPanel({
 
           <div className="detail-sheet-header">
             <div>
-              <span className="detail-sheet-kicker">PROimago V0.1.5</span>
+              <span className="detail-sheet-kicker">PROimago V0.1.6</span>
               <h2>{getPanelTitle(detailPanel)}</h2>
               <p>{getPanelSubtitle(detailPanel)}</p>
             </div>
@@ -138,10 +156,6 @@ export function ControlPanel({
               />
             ) : null}
 
-            {detailPanel === 'snapshots' ? (
-              <SnapshotsPanel snapshots={snapshots} />
-            ) : null}
-
             {detailPanel === 'tools' ? (
               <ToolsPanel
                 analysis={analysis}
@@ -149,15 +163,19 @@ export function ControlPanel({
                 canStart={canStart}
                 canStop={canStop}
                 category={category}
+                focusedPreviewId={focusedPreviewId}
                 intervalMs={intervalMs}
                 isFieldActive={isFieldActive}
-                onOpenSnapshots={() => onOpenDetailPanel('snapshots')}
-                onStart={onStart}
-                onStop={onStop}
+                selectedReferencePreviewId={selectedReferencePreviewId}
                 snapshots={snapshots}
                 suggestion={suggestion}
                 videoHeight={videoHeight}
                 videoWidth={videoWidth}
+                onDeletePreview={onDeletePreview}
+                onSelectReferencePreview={onSelectReferencePreview}
+                onStart={onStart}
+                onStop={onStop}
+                onToggleFavoritePreview={onToggleFavoritePreview}
                 onSetZoom={onSetZoom}
                 onSetTorch={onSetTorch}
                 onSetExposureCompensation={onSetExposureCompensation}
@@ -193,6 +211,42 @@ export function ControlPanel({
           isActive={detailPanel === 'tools'}
           onClick={() => onOpenDetailPanel('tools')}
         />
+      </div>
+    </section>
+  )
+}
+
+interface PreviewQuickStripProps {
+  previews: SnapshotItem[]
+  onOpenPreview: (previewId?: string) => void
+}
+
+function PreviewQuickStrip({ previews, onOpenPreview }: PreviewQuickStripProps) {
+  return (
+    <section className="preview-quick-strip" aria-label="Ultime anteprime">
+      <div className="preview-quick-strip-header">
+        <strong>Ultime preview</strong>
+        <button type="button" className="sheet-link-button" onClick={() => onOpenPreview()}>
+          Apri board
+        </button>
+      </div>
+
+      <div className="preview-quick-strip-list">
+        {previews.slice(0, 5).map((preview, index) => (
+          <button
+            key={preview.id}
+            type="button"
+            className={`preview-quick-item ${preview.isFavorite ? 'is-favorite' : ''}`}
+            onClick={() => onOpenPreview(preview.id)}
+            aria-label={`Apri preview ${index + 1}`}
+          >
+            <img
+              src={preview.thumbnailDataUrl ?? preview.imageDataUrl}
+              alt={`Preview ${index + 1}`}
+            />
+            <span className="preview-quick-score">{preview.score}</span>
+          </button>
+        ))}
       </div>
     </section>
   )
@@ -260,72 +314,25 @@ function CategoryPanel({ category, categories, onSelectCategory }: CategoryPanel
   )
 }
 
-interface SnapshotsPanelProps {
-  snapshots: SnapshotItem[]
-}
-
-function SnapshotsPanel({ snapshots }: SnapshotsPanelProps) {
-  return (
-    <div className="sheet-layout">
-      <section className="sheet-section">
-        <div className="sheet-inline-header">
-          <strong>Archivio rapido</strong>
-          <span>{snapshots.length}/12 in memoria</span>
-        </div>
-      </section>
-
-      <section className="sheet-section">
-        {snapshots.length === 0 ? (
-          <div className="sheet-empty-state">
-            Scatta una preview dal live view per confrontare composizione e suggerimenti.
-          </div>
-        ) : (
-          <div className="snapshot-sheet-grid">
-            {snapshots.map((snapshot) => (
-              <article key={snapshot.id} className="snapshot-sheet-card">
-                <img
-                  src={snapshot.dataUrl}
-                  alt={`Snapshot ${formatTimestamp(snapshot.timestamp)}`}
-                />
-                <div className="snapshot-sheet-meta">
-                  <div className="snapshot-sheet-tags">
-                    <span className="sheet-chip">
-                      {PHOTO_CATEGORY_BY_ID[snapshot.categoryId].shortLabel ??
-                        PHOTO_CATEGORY_BY_ID[snapshot.categoryId].label}
-                    </span>
-                    <span className="sheet-chip">Score {snapshot.score}</span>
-                    <span className="sheet-chip">Nit {snapshot.sharpness}</span>
-                  </div>
-                  <strong>{formatTimestamp(snapshot.timestamp)}</strong>
-                  <span>
-                    {`L ${snapshot.brightness} · C ${snapshot.contrast} · S ${snapshot.saturation} · Nit ${snapshot.sharpness}`}
-                  </span>
-                  <p>{snapshot.suggestion.text}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
-  )
-}
-
 interface ToolsPanelProps {
   analysis: FrameAnalysis
   cameraInfo: CameraTrackInfo | null
   canStart: boolean
   canStop: boolean
   category: PhotoCategory
+  focusedPreviewId: string | null
   intervalMs: number
   isFieldActive: boolean
-  onOpenSnapshots: () => void
-  onStart: () => Promise<void>
-  onStop: () => void
+  selectedReferencePreviewId: string | null
   snapshots: SnapshotItem[]
   suggestion: Suggestion
   videoHeight: number
   videoWidth: number
+  onDeletePreview: (previewId: string) => void
+  onSelectReferencePreview: (previewId: string) => void
+  onStart: () => Promise<void>
+  onStop: () => void
+  onToggleFavoritePreview: (previewId: string) => void
   onSetZoom: (value: number) => Promise<CameraControlResult>
   onSetTorch: (on: boolean) => Promise<CameraControlResult>
   onSetExposureCompensation: (value: number) => Promise<CameraControlResult>
@@ -339,15 +346,19 @@ function ToolsPanel({
   canStart,
   canStop,
   category,
+  focusedPreviewId,
   intervalMs,
   isFieldActive,
-  onOpenSnapshots,
-  onStart,
-  onStop,
+  selectedReferencePreviewId,
   snapshots,
   suggestion,
   videoHeight,
   videoWidth,
+  onDeletePreview,
+  onSelectReferencePreview,
+  onStart,
+  onStop,
+  onToggleFavoritePreview,
   onSetZoom,
   onSetTorch,
   onSetExposureCompensation,
@@ -364,13 +375,14 @@ function ToolsPanel({
   return (
     <div className="sheet-layout">
       <section className="sheet-section">
-        <div className="sheet-inline-header">
-          <strong>Camera Controls Advisor</strong>
-          <span>{isFieldActive ? 'live attivo' : 'camera inattiva'}</span>
-        </div>
-        <p className="sheet-body-copy">
-          PROimago consiglia anche come usare lente, luce continua, esposizione e fuoco senza sporcare il live HUD.
-        </p>
+        <PreviewBoard
+          focusPreviewId={focusedPreviewId}
+          previews={snapshots}
+          selectedReferencePreviewId={selectedReferencePreviewId}
+          onDeletePreview={onDeletePreview}
+          onSelectReference={onSelectReferencePreview}
+          onToggleFavorite={onToggleFavoritePreview}
+        />
       </section>
 
       <section className="sheet-section">
@@ -389,8 +401,8 @@ function ToolsPanel({
 
       <section className="sheet-section">
         <div className="sheet-inline-header">
-          <strong>Metriche complete</strong>
-          <span>refresh {intervalMs} ms</span>
+          <strong>Diagnostics</strong>
+          <span>{`refresh ${intervalMs} ms`}</span>
         </div>
         <div className="tools-grid">
           <MetricTile label="Score" value={`${analysis.score}`} tone={getScoreTone(analysis.score)} />
@@ -432,6 +444,9 @@ function ToolsPanel({
           <strong>Camera</strong>
           <span>controlli dinamici</span>
         </div>
+        <p className="sheet-body-copy">
+          PROimago tiene i controlli camera nel pannello Tools per lasciare il live HUD leggero.
+        </p>
         <CameraControlsSection
           key={getCameraControlsKey(cameraInfo)}
           cameraInfo={cameraInfo}
@@ -445,7 +460,7 @@ function ToolsPanel({
 
       <section className="sheet-section">
         <div className="sheet-inline-header">
-          <strong>Camera info</strong>
+          <strong>Camera Info</strong>
           <span>{cameraLabel}</span>
         </div>
         <div className="tools-grid">
@@ -484,29 +499,6 @@ function ToolsPanel({
           <MetricTile label="Frame rate" value={formatFrameRate(settings?.frameRate)} tone="good" />
           <MetricTile label="Aspect" value={aspectRatio} tone="good" />
         </div>
-      </section>
-
-      <section className="sheet-section">
-        <div className="sheet-inline-header">
-          <strong>Snapshot strip</strong>
-          <button type="button" className="sheet-link-button" onClick={onOpenSnapshots}>
-            Apri archivio
-          </button>
-        </div>
-        {snapshots.length === 0 ? (
-          <div className="sheet-empty-state">Nessuna preview salvata.</div>
-        ) : (
-          <div className="snapshot-peek-row">
-            {snapshots.slice(0, 4).map((snapshot) => (
-              <img
-                key={snapshot.id}
-                className="snapshot-peek-image"
-                src={snapshot.dataUrl}
-                alt={`Preview ${formatTimestamp(snapshot.timestamp)}`}
-              />
-            ))}
-          </div>
-        )}
       </section>
 
       <section className="sheet-section">
@@ -610,9 +602,7 @@ function CameraControlsSection({
   const handleResetControls = async () => {
     const result = await onResetCameraControls()
     setCameraControlMessage(
-      result.ok
-        ? 'Controlli camera ripristinati.'
-        : result.error ?? getUnsupportedControlCopy(),
+      result.ok ? 'Controlli camera ripristinati.' : result.error ?? getUnsupportedControlCopy(),
     )
   }
 
@@ -671,8 +661,7 @@ function CameraControlsSection({
           <div className="camera-control-header">
             <strong>Esposizione</strong>
             <span>
-              {controlSupport.supportsExposureCompensation &&
-              typeof exposureValue === 'number'
+              {controlSupport.supportsExposureCompensation && typeof exposureValue === 'number'
                 ? formatControlValue(exposureValue)
                 : 'n/d'}
             </span>
@@ -686,9 +675,7 @@ function CameraControlsSection({
                 max={controlSupport.exposureMax}
                 step={controlSupport.exposureStep ?? 0.1}
                 value={exposureValue}
-                onChange={(event) =>
-                  void handleExposureChange(Number(event.target.value))
-                }
+                onChange={(event) => void handleExposureChange(Number(event.target.value))}
               />
               <p className="camera-control-note">
                 {`Range ${formatControlValue(controlSupport.exposureMin)} - ${formatControlValue(controlSupport.exposureMax)}`}
@@ -737,8 +724,7 @@ function CameraControlsSection({
           </div>
           {controlSupport.supportsWhiteBalanceMode ? (
             <p className="camera-control-note">
-              {controlSupport.supportedWhiteBalanceModes?.join(', ') ??
-                'Modalita non esposte.'}
+              {controlSupport.supportedWhiteBalanceModes?.join(', ') ?? 'Modalita non esposte.'}
             </p>
           ) : (
             <p className="camera-control-note">{getUnsupportedControlCopy()}</p>
@@ -765,8 +751,7 @@ function CameraControlsSection({
           Ripristina controlli
         </button>
         <p className="sheet-support-note">
-          {cameraControlMessage ??
-            'I controlli compaiono solo se il browser li espone davvero.'}
+          {cameraControlMessage ?? 'I controlli compaiono solo se il browser li espone davvero.'}
         </p>
       </div>
     </div>
@@ -792,12 +777,9 @@ function getPanelTitle(detailPanel: DetailPanelId) {
   switch (detailPanel) {
     case 'category':
       return 'Categoria'
-    case 'snapshots':
-      return 'Snapshot'
     case 'tools':
-      return 'Strumenti'
     default:
-      return 'Dettagli'
+      return 'Altro / Tools'
   }
 }
 
@@ -805,12 +787,9 @@ function getPanelSubtitle(detailPanel: DetailPanelId) {
   switch (detailPanel) {
     case 'category':
       return 'Scegli il tipo di scena senza lasciare la live view.'
-    case 'snapshots':
-      return 'Rivedi rapidamente le preview salvate durante la ripresa.'
     case 'tools':
-      return 'Metriche complete, camera controls advisor, info camera e dettaglio del suggerimento.'
     default:
-      return ''
+      return 'Preview board, camera info, diagnostics e consigli completi senza sporcare la scena.'
   }
 }
 
@@ -900,7 +879,9 @@ function getCompositionScore(analysis: FrameAnalysis) {
   const balanceScore = Math.max(0, 100 - Math.round(centerOffset * 120))
   const headroomScore = Math.max(0, 100 - Math.max(0, analysis.topEmptySpace - 38))
 
-  return Math.round((spreadScore * 0.22 + balanceScore * 0.22 + headroomScore * 0.18 + analysis.score * 0.38))
+  return Math.round(
+    spreadScore * 0.22 + balanceScore * 0.22 + headroomScore * 0.18 + analysis.score * 0.38,
+  )
 }
 
 function getCameraControlsKey(cameraInfo: CameraTrackInfo | null) {
@@ -959,14 +940,4 @@ function formatControlValue(value: number | undefined) {
 
 function getUnsupportedControlCopy() {
   return 'Controllo non disponibile in questo browser. PROimago puo comunque suggerire come usare la lente o cambiare angolo.'
-}
-
-function formatTimestamp(timestamp: number) {
-  return new Date(timestamp).toLocaleString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    month: '2-digit',
-    day: '2-digit',
-  })
 }
