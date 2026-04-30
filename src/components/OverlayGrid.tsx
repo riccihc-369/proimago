@@ -1,76 +1,64 @@
-import type { FrameAnalysis, PhotoCategory, Suggestion } from '../types'
+import type { FrameAnalysis, HudState, PhotoCategory, Suggestion } from '../types'
 
 interface OverlayGridProps {
-  category: PhotoCategory
   analysis: FrameAnalysis
+  category: PhotoCategory
+  hudState: HudState
   suggestion: Suggestion
 }
 
-export function OverlayGrid({ category, analysis, suggestion }: OverlayGridProps) {
-  const zoneSize = Math.round(44 + analysis.dominantSpread * 128)
-  const brightnessTone = getMetricTone(analysis.brightness, 28, 46)
-  const contrastTone = getMetricTone(analysis.contrast, 24, 42)
-  const saturationTone = getSaturationTone(analysis.saturation)
-  const compositionMetric = getCompositionMetric(analysis)
-  const badgeLabel = category.shortLabel ?? category.label
+export function OverlayGrid({
+  analysis,
+  category,
+  hudState,
+  suggestion,
+}: OverlayGridProps) {
+  const trackerSize = Math.round(24 + analysis.dominantSpread * 64)
+  const composition = getCompositionScore(analysis)
 
   return (
-    <div className="overlay-root" aria-hidden="true">
+    <div className={`overlay-root hud-${hudState}`} aria-hidden="true">
       <div className="grid-line vertical" style={{ left: '33.333%' }} />
       <div className="grid-line vertical" style={{ left: '66.666%' }} />
       <div className="grid-line horizontal" style={{ top: '33.333%' }} />
       <div className="grid-line horizontal" style={{ top: '66.666%' }} />
 
-      <div className="center-guard" />
-      <div className="center-reticle">
-        <span className="center-reticle-dot" />
-      </div>
-
       <div
-        className="dominant-zone"
+        className="dominant-tracker"
         style={{
           left: `${analysis.dominantPoint.x * 100}%`,
           top: `${analysis.dominantPoint.y * 100}%`,
-          width: `${zoneSize}px`,
-          height: `${zoneSize}px`,
+          width: `${trackerSize}px`,
+          height: `${trackerSize}px`,
         }}
       >
-        <div className="dominant-dot" />
+        <span className="dominant-tracker-dot" />
       </div>
 
       <div className="overlay-topbar">
-        <div className="mode-badge">{`Categoria: ${badgeLabel}`}</div>
-
-        <div className="score-pill">
-          <div className="score-pill-row">
-            <strong>{analysis.score}</strong>
-            <span>Score</span>
-          </div>
-          <div className="score-bar">
-            <div
-              className="score-bar-fill"
-              style={{ width: `${analysis.score}%` }}
-            />
-          </div>
+        <div className="mode-badge">{category.shortLabel ?? category.label}</div>
+        <div className={`score-chip ${getScoreTone(analysis.score)}`}>
+          <span>Score</span>
+          <strong>{analysis.score}</strong>
         </div>
       </div>
 
       <div className="overlay-bottom">
-        <div className={`suggestion-panel ${suggestion.severity}`}>
-          <div className="suggestion-heading">
+        <div className={`suggestion-strip ${suggestion.severity}`}>
+          <div className="suggestion-strip-header">
             <strong>Suggerimento</strong>
             <span className={`severity-badge ${suggestion.severity}`}>
-              {suggestion.family}
+              {getSeverityLabel(suggestion.severity)}
             </span>
           </div>
           <p>{suggestion.text}</p>
         </div>
 
-        <div className="metric-strip">
-          <MetricPill label="Composizione" value={compositionMetric.value} tone={compositionMetric.tone} />
-          <MetricPill label="Luce" value={`${analysis.brightness}%`} tone={brightnessTone} />
-          <MetricPill label="Contrasto" value={`${analysis.contrast}%`} tone={contrastTone} />
-          <MetricPill label="Saturazione" value={`${analysis.saturation}%`} tone={saturationTone} />
+        <div className="metric-row">
+          <MetricPill label="Comp" value={`${composition}`} tone={getScoreTone(composition)} />
+          <MetricPill label="Luce" value={`${analysis.brightness}`} tone={getMetricTone(analysis.brightness, 28, 46)} />
+          <MetricPill label="Contrasto" value={`${analysis.contrast}`} tone={getMetricTone(analysis.contrast, 24, 42)} />
+          <MetricPill label="Sat" value={`${analysis.saturation}`} tone={getSaturationTone(analysis.saturation)} />
         </div>
       </div>
     </div>
@@ -79,11 +67,11 @@ export function OverlayGrid({ category, analysis, suggestion }: OverlayGridProps
 
 interface MetricPillProps {
   label: string
-  value: string
   tone: 'good' | 'warn' | 'bad'
+  value: string
 }
 
-function MetricPill({ label, value, tone }: MetricPillProps) {
+function MetricPill({ label, tone, value }: MetricPillProps) {
   return (
     <div className={`metric-pill ${tone}`}>
       <span>{label}</span>
@@ -92,12 +80,38 @@ function MetricPill({ label, value, tone }: MetricPillProps) {
   )
 }
 
+function getSeverityLabel(severity: Suggestion['severity']) {
+  switch (severity) {
+    case 'warning':
+      return 'Attenzione'
+    case 'improve':
+      return 'Affina'
+    case 'good':
+      return 'Buono'
+    case 'info':
+    default:
+      return 'Info'
+  }
+}
+
 function getMetricTone(value: number, warnThreshold: number, goodThreshold: number) {
   if (value < warnThreshold) {
     return 'bad' as const
   }
 
   if (value < goodThreshold) {
+    return 'warn' as const
+  }
+
+  return 'good' as const
+}
+
+function getScoreTone(value: number) {
+  if (value < 40) {
+    return 'bad' as const
+  }
+
+  if (value < 68) {
     return 'warn' as const
   }
 
@@ -116,23 +130,13 @@ function getSaturationTone(value: number) {
   return 'good' as const
 }
 
-function getCompositionMetric(analysis: FrameAnalysis) {
-  const centerDistance = Math.hypot(
-    analysis.dominantPoint.x - 0.5,
-    analysis.dominantPoint.y - 0.5,
+function getCompositionScore(analysis: FrameAnalysis) {
+  const spreadScore = Math.min(100, Math.round(analysis.dominantSpread * 180))
+  const centerOffset = Math.hypot(analysis.dominantPoint.x - 0.5, analysis.dominantPoint.y - 0.5)
+  const balanceScore = Math.max(0, 100 - Math.round(centerOffset * 120))
+  const headroomScore = Math.max(0, 100 - Math.max(0, analysis.topEmptySpace - 38))
+
+  return Math.round(
+    spreadScore * 0.22 + balanceScore * 0.22 + headroomScore * 0.18 + analysis.score * 0.38,
   )
-
-  if (centerDistance < 0.16) {
-    return { value: 'Centrale', tone: 'warn' as const }
-  }
-
-  if (analysis.topEmptySpace > 62) {
-    return { value: 'Da chiudere', tone: 'warn' as const }
-  }
-
-  if (analysis.score > 72) {
-    return { value: 'Buona', tone: 'good' as const }
-  }
-
-  return { value: 'Equilibrata', tone: 'good' as const }
 }

@@ -5,34 +5,35 @@ import {
   EMPTY_FRAME_ANALYSIS,
   FRAME_ANALYSIS_INTERVAL_MS,
 } from './analysis/frameAnalyzer'
-import {
-  getNextPhotoCategoryId,
-  PHOTO_CATEGORIES,
-  PHOTO_CATEGORY_BY_ID,
-} from './analysis/photoCategories'
+import { PHOTO_CATEGORIES, PHOTO_CATEGORY_BY_ID } from './analysis/photoCategories'
 import { createSuggestion } from './analysis/suggestionEngine'
 import { useStableSuggestion } from './analysis/useStableSuggestion'
 import { useCamera } from './camera/useCamera'
-import { CameraDiagnostics } from './components/CameraDiagnostics'
 import { CameraView } from './components/CameraView'
 import { ControlPanel } from './components/ControlPanel'
 import { OverlayGrid } from './components/OverlayGrid'
-import { SnapshotStrip } from './components/SnapshotStrip'
 import type {
   CameraStatus,
+  DetailPanelId,
   FrameAnalysis,
+  HudState,
   PhotoCategoryId,
   SnapshotItem,
 } from './types'
 
+const HUD_IDLE_TIMEOUT_MS = 2800
+
 function App() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const analysisCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const hudIdleTimerRef = useRef<number | null>(null)
   const [activeCategoryId, setActiveCategoryId] = useState<PhotoCategoryId>('auto')
   const [analysis, setAnalysis] = useState<FrameAnalysis>(EMPTY_FRAME_ANALYSIS)
   const [snapshots, setSnapshots] = useState<SnapshotItem[]>([])
   const [videoReady, setVideoReady] = useState(false)
   const [videoMetrics, setVideoMetrics] = useState({ width: 0, height: 0 })
+  const [detailPanel, setDetailPanel] = useState<DetailPanelId | null>(null)
+  const [areControlsVisible, setAreControlsVisible] = useState(true)
 
   const activeCategory = PHOTO_CATEGORY_BY_ID[activeCategoryId]
   const {
@@ -46,6 +47,8 @@ function App() {
   } = useCamera()
   const cameraReady = status === 'ready' && videoReady
   const visibleAnalysis = cameraReady ? analysis : EMPTY_FRAME_ANALYSIS
+  const hudState: HudState =
+    detailPanel !== null ? 'detail' : cameraReady && !areControlsVisible ? 'idle' : 'controls'
 
   useEffect(() => {
     const video = videoRef.current
@@ -120,12 +123,58 @@ function App() {
   )
   const stableSuggestion = useStableSuggestion(rawSuggestion, cameraReady)
 
-  const handleCycleCategory = () => {
-    setActiveCategoryId((currentId) => getNextPhotoCategoryId(currentId))
+  const wakeHud = () => {
+    if (hudIdleTimerRef.current !== null) {
+      window.clearTimeout(hudIdleTimerRef.current)
+      hudIdleTimerRef.current = null
+    }
+
+    setAreControlsVisible(true)
+
+    if (!cameraReady || detailPanel !== null) {
+      return
+    }
+
+    hudIdleTimerRef.current = window.setTimeout(() => {
+      setAreControlsVisible(false)
+    }, HUD_IDLE_TIMEOUT_MS)
+  }
+
+  useEffect(() => {
+    if (hudIdleTimerRef.current !== null) {
+      window.clearTimeout(hudIdleTimerRef.current)
+      hudIdleTimerRef.current = null
+    }
+
+    if (!cameraReady || detailPanel !== null) {
+      return
+    }
+
+    hudIdleTimerRef.current = window.setTimeout(() => {
+      setAreControlsVisible(false)
+    }, HUD_IDLE_TIMEOUT_MS)
+
+    return () => {
+      if (hudIdleTimerRef.current !== null) {
+        window.clearTimeout(hudIdleTimerRef.current)
+        hudIdleTimerRef.current = null
+      }
+    }
+  }, [cameraReady, detailPanel])
+
+  const handleOpenDetailPanel = (nextPanel: DetailPanelId) => {
+    setDetailPanel(nextPanel)
+    wakeHud()
+  }
+
+  const handleCloseDetailPanel = () => {
+    setDetailPanel(null)
+    wakeHud()
   }
 
   const handleSelectCategory = (nextCategoryId: PhotoCategoryId) => {
     setActiveCategoryId(nextCategoryId)
+    handleCloseDetailPanel()
   }
 
   const handleCapture = () => {
@@ -143,11 +192,13 @@ function App() {
     }
 
     setSnapshots((current) => [snapshot, ...current].slice(0, 12))
+    wakeHud()
   }
 
   const handleStartCamera = async () => {
     setVideoReady(false)
     setVideoMetrics({ width: 0, height: 0 })
+    wakeHud()
     await startCamera(videoRef.current)
   }
 
@@ -155,12 +206,17 @@ function App() {
     stopCamera()
     setVideoReady(false)
     setVideoMetrics({ width: 0, height: 0 })
+    setDetailPanel(null)
+    setAreControlsVisible(true)
   }
 
   const statusLabel = getStatusLabel(status, error, isSupported)
 
   return (
-    <main className={`app-shell ${cameraReady ? 'is-field-active' : ''}`}>
+    <main
+      className={`app-shell ${cameraReady ? 'is-field-active' : ''} hud-${hudState}`}
+      onPointerDownCapture={wakeHud}
+    >
       <section className="camera-stage">
         <CameraView
           videoRef={videoRef}
@@ -169,38 +225,38 @@ function App() {
           isSupported={isSupported}
           statusLabel={statusLabel}
         />
-        <OverlayGrid
-          category={activeCategory}
-          analysis={visibleAnalysis}
-          suggestion={stableSuggestion}
-        />
-      </section>
-
-      <section className="bottom-stack">
+        {cameraReady ? (
+          <OverlayGrid
+            category={activeCategory}
+            analysis={visibleAnalysis}
+            hudState={hudState}
+            suggestion={stableSuggestion}
+          />
+        ) : null}
         <ControlPanel
+          analysis={visibleAnalysis}
+          cameraInfo={cameraInfo}
           category={activeCategory}
           categories={PHOTO_CATEGORIES}
-          isFieldActive={cameraReady}
           canStart={isSupported && status !== 'requesting' && status !== 'ready'}
           canStop={status === 'ready' || status === 'requesting'}
           canCapture={cameraReady}
-          onStart={handleStartCamera}
-          onStop={handleStopCamera}
-          onCycleCategory={handleCycleCategory}
-          onSelectCategory={handleSelectCategory}
-          onCapture={handleCapture}
-        />
-
-        <CameraDiagnostics
-          analysis={visibleAnalysis}
-          cameraInfo={cameraInfo}
+          detailPanel={detailPanel}
+          hudState={hudState}
           intervalMs={FRAME_ANALYSIS_INTERVAL_MS}
           isFieldActive={cameraReady}
-          videoWidth={videoMetrics.width}
+          snapshots={snapshots}
+          status={status}
+          suggestion={stableSuggestion}
           videoHeight={videoMetrics.height}
+          videoWidth={videoMetrics.width}
+          onStart={handleStartCamera}
+          onStop={handleStopCamera}
+          onSelectCategory={handleSelectCategory}
+          onCapture={handleCapture}
+          onCloseDetailPanel={handleCloseDetailPanel}
+          onOpenDetailPanel={handleOpenDetailPanel}
         />
-
-        <SnapshotStrip snapshots={snapshots} isFieldActive={cameraReady} />
       </section>
       <canvas ref={analysisCanvasRef} className="analysis-canvas" aria-hidden="true" />
     </main>

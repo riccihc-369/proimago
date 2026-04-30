@@ -1,5 +1,5 @@
-const CACHE_NAME = 'proimago-v0-1'
-const ASSETS = ['/', '/site.webmanifest', '/favicon.svg']
+const CACHE_NAME = 'proimago-cache-v0.1.3'
+const ASSETS = ['/site.webmanifest', '/favicon.svg']
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)))
@@ -12,9 +12,8 @@ self.addEventListener('activate', (event) => {
       Promise.all(
         keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)),
       ),
-    ),
+    ).then(() => self.clients.claim()),
   )
-  self.clients.claim()
 })
 
 self.addEventListener('fetch', (event) => {
@@ -22,19 +21,53 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) {
-        return cached
-      }
+  if (isNavigationRequest(event.request)) {
+    event.respondWith(networkFirst(event.request))
+    return
+  }
 
-      return fetch(event.request)
-        .then((response) => {
-          const responseClone = response.clone()
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone))
-          return response
-        })
-        .catch(() => caches.match('/'))
-    }),
-  )
+  event.respondWith(cacheFirst(event.request))
 })
+
+function isNavigationRequest(request) {
+  return (
+    request.mode === 'navigate' ||
+    request.headers.get('accept')?.includes('text/html')
+  )
+}
+
+async function networkFirst(request) {
+  try {
+    const response = await fetch(request)
+    cacheResponse(request, response)
+    return response
+  } catch {
+    const cachedResponse = await caches.match(request)
+    if (cachedResponse) {
+      return cachedResponse
+    }
+
+    return caches.match('/')
+  }
+}
+
+async function cacheFirst(request) {
+  const cachedResponse = await caches.match(request)
+  if (cachedResponse) {
+    return cachedResponse
+  }
+
+  const response = await fetch(request)
+  cacheResponse(request, response)
+  return response
+}
+
+function cacheResponse(request, response) {
+  if (!response.ok || request.url.startsWith('chrome-extension://')) {
+    return
+  }
+
+  caches.open(CACHE_NAME).then((cache) => {
+    cache.put(request, response.clone())
+  })
+}

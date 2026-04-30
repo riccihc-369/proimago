@@ -23,6 +23,10 @@ export interface PhotoCategory {
 
 export type CameraStatus = 'idle' | 'requesting' | 'ready'
 
+export type HudState = 'idle' | 'controls' | 'detail'
+
+export type DetailPanelId = 'category' | 'snapshots' | 'tools'
+
 export type SuggestionSeverity = 'info' | 'improve' | 'warning' | 'good'
 
 export type SuggestionFamily =
