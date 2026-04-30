@@ -21,7 +21,7 @@ import type {
   SnapshotItem,
 } from './types'
 
-const HUD_IDLE_TIMEOUT_MS = 2800
+const HUD_IDLE_TIMEOUT_MS = 3000
 
 function App() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -43,6 +43,11 @@ function App() {
     cameraInfo,
     startCamera,
     stopCamera,
+    setZoom,
+    setTorch,
+    setExposureCompensation,
+    setFocusMode,
+    resetCameraControls,
     captureSnapshot,
   } = useCamera()
   const cameraReady = status === 'ready' && videoReady
@@ -183,6 +188,7 @@ function App() {
       brightness: visibleAnalysis.brightness,
       contrast: visibleAnalysis.contrast,
       saturation: visibleAnalysis.saturation,
+      sharpness: visibleAnalysis.sharpness,
       colorTemperatureHint: visibleAnalysis.colorTemperatureHint,
       score: visibleAnalysis.score,
       suggestion: stableSuggestion,
@@ -250,6 +256,11 @@ function App() {
           suggestion={stableSuggestion}
           videoHeight={videoMetrics.height}
           videoWidth={videoMetrics.width}
+          onSetZoom={setZoom}
+          onSetTorch={setTorch}
+          onSetExposureCompensation={setExposureCompensation}
+          onSetFocusMode={setFocusMode}
+          onResetCameraControls={resetCameraControls}
           onStart={handleStartCamera}
           onStop={handleStopCamera}
           onSelectCategory={handleSelectCategory}

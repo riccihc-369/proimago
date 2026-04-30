@@ -57,8 +57,18 @@ export function OverlayGrid({
         <div className="metric-row">
           <MetricPill label="Comp" value={`${composition}`} tone={getScoreTone(composition)} />
           <MetricPill label="Luce" value={`${analysis.brightness}`} tone={getMetricTone(analysis.brightness, 28, 46)} />
-          <MetricPill label="Contrasto" value={`${analysis.contrast}`} tone={getMetricTone(analysis.contrast, 24, 42)} />
+          <MetricPill
+            label="Contrasto"
+            value={`${analysis.contrast}`}
+            tone={getMetricTone(analysis.contrast, 24, 42)}
+          />
           <MetricPill label="Sat" value={`${analysis.saturation}`} tone={getSaturationTone(analysis.saturation)} />
+          <MetricPill
+            className="optional"
+            label="Nit"
+            value={`${analysis.sharpness}`}
+            tone={getSharpnessTone(analysis.sharpness)}
+          />
         </div>
       </div>
     </div>
@@ -66,14 +76,15 @@ export function OverlayGrid({
 }
 
 interface MetricPillProps {
+  className?: string
   label: string
   tone: 'good' | 'warn' | 'bad'
   value: string
 }
 
-function MetricPill({ label, tone, value }: MetricPillProps) {
+function MetricPill({ className, label, tone, value }: MetricPillProps) {
   return (
-    <div className={`metric-pill ${tone}`}>
+    <div className={`metric-pill ${tone} ${className ?? ''}`.trim()}>
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
@@ -124,6 +135,18 @@ function getSaturationTone(value: number) {
   }
 
   if (value < 24 || value > 70) {
+    return 'warn' as const
+  }
+
+  return 'good' as const
+}
+
+function getSharpnessTone(value: number) {
+  if (value < 28) {
+    return 'bad' as const
+  }
+
+  if (value < 48) {
     return 'warn' as const
   }
 

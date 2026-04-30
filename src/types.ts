@@ -34,6 +34,7 @@ export type SuggestionFamily =
   | 'light'
   | 'color'
   | 'framing'
+  | 'camera'
   | 'category'
 
 export type ColorTemperatureHint = 'cool' | 'neutral' | 'warm'
@@ -60,6 +61,7 @@ export interface FrameAnalysis {
   brightness: number
   contrast: number
   saturation: number
+  sharpness: number
   colorTemperatureHint?: ColorTemperatureHint
   dominantWeight: number
   topEmptySpace: number
@@ -90,6 +92,7 @@ export interface SnapshotCapturePayload {
   brightness: number
   contrast: number
   saturation: number
+  sharpness: number
   colorTemperatureHint?: ColorTemperatureHint
   score: number
   suggestion: Suggestion
@@ -104,6 +107,7 @@ export interface SnapshotItem {
   brightness: number
   contrast: number
   saturation: number
+  sharpness: number
   colorTemperatureHint?: ColorTemperatureHint
   score: number
   suggestion: Suggestion
@@ -116,17 +120,77 @@ export interface CameraNumericCapability {
   step: number
 }
 
-export interface CameraCapabilitiesSummary {
-  supported: boolean
+export interface CameraCapabilitiesInfo {
   zoom: CameraNumericCapability | null
-  focusMode: string[] | null
-  exposureMode: string[] | null
   torch: boolean | null
-  error?: string
+  focusMode: string[] | null
+  focusDistance: CameraNumericCapability | null
+  exposureMode: string[] | null
+  exposureCompensation: CameraNumericCapability | null
+  whiteBalanceMode: string[] | null
+  width: CameraNumericCapability | null
+  height: CameraNumericCapability | null
+  frameRate: CameraNumericCapability | null
+}
+
+export interface CameraSettingsInfo {
+  zoom?: number | null
+  torch?: boolean | null
+  focusMode?: string | null
+  focusDistance?: number | null
+  exposureMode?: string | null
+  exposureCompensation?: number | null
+  whiteBalanceMode?: string | null
+  width?: number | null
+  height?: number | null
+  frameRate?: number | null
+  facingMode?: string | null
+}
+
+export interface CameraControlSupport {
+  supportsZoom: boolean
+  zoomMin?: number
+  zoomMax?: number
+  zoomStep?: number
+  currentZoom?: number
+  supportsTorch: boolean
+  torchOn?: boolean
+  supportsExposureCompensation: boolean
+  exposureMin?: number
+  exposureMax?: number
+  exposureStep?: number
+  currentExposure?: number
+  supportsFocusMode: boolean
+  supportedFocusModes?: string[]
+  currentFocusMode?: string
+  supportsFocusDistance: boolean
+  focusDistanceMin?: number
+  focusDistanceMax?: number
+  focusDistanceStep?: number
+  currentFocusDistance?: number
+  supportsExposureMode: boolean
+  supportedExposureModes?: string[]
+  currentExposureMode?: string
+  supportsWhiteBalanceMode: boolean
+  supportedWhiteBalanceModes?: string[]
+  currentWhiteBalanceMode?: string
+  facingMode?: string
+  width?: number
+  height?: number
+  frameRate?: number
+}
+
+export interface LensAdvice {
+  id: string
+  priority: number
+  severity?: SuggestionSeverity
+  text: string
 }
 
 export interface CameraTrackInfo {
   label: string | null
   facingMode: string | null
-  capabilities: CameraCapabilitiesSummary | null
+  capabilities: CameraCapabilitiesInfo | null
+  settings: CameraSettingsInfo | null
+  controlSupport: CameraControlSupport
 }

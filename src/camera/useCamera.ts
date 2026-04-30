@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
+import {
+  applyAdvancedConstraint,
+  type CameraConstraintSet,
+  type CameraControlResult,
+  readCameraTrackInfo,
+} from './cameraCapabilities'
 import type {
-  CameraCapabilitiesSummary,
-  CameraNumericCapability,
   CameraStatus,
+  CameraSettingsInfo,
   CameraTrackInfo,
   SnapshotCapturePayload,
   SnapshotItem,
@@ -15,6 +20,11 @@ interface UseCameraResult {
   cameraInfo: CameraTrackInfo | null
   startCamera: (videoElement: HTMLVideoElement | null) => Promise<void>
   stopCamera: () => void
+  setZoom: (value: number) => Promise<CameraControlResult>
+  setTorch: (on: boolean) => Promise<CameraControlResult>
+  setExposureCompensation: (value: number) => Promise<CameraControlResult>
+  setFocusMode: (mode: string) => Promise<CameraControlResult>
+  resetCameraControls: () => Promise<CameraControlResult>
   captureSnapshot: (
     videoElement: HTMLVideoElement | null,
     payload: SnapshotCapturePayload,
@@ -33,6 +43,7 @@ const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
 export function useCamera(): UseCameraResult {
   const streamRef = useRef<MediaStream | null>(null)
   const videoElementRef = useRef<HTMLVideoElement | null>(null)
+  const initialSettingsRef = useRef<CameraSettingsInfo | null>(null)
   const [status, setStatus] = useState<CameraStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [cameraInfo, setCameraInfo] = useState<CameraTrackInfo | null>(null)
@@ -52,6 +63,7 @@ export function useCamera(): UseCameraResult {
     stopTracks(streamRef.current)
     clearVideoElement(videoElementRef.current)
     streamRef.current = null
+    initialSettingsRef.current = null
     setCameraInfo(null)
     setError(null)
     setStatus('idle')
@@ -71,11 +83,14 @@ export function useCamera(): UseCameraResult {
       stopTracks(streamRef.current)
       const stream = await navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS)
       streamRef.current = stream
-      setCameraInfo(readCameraTrackInfo(stream))
+      const trackInfo = readActiveTrackInfo(stream)
+      initialSettingsRef.current = trackInfo?.settings ?? null
+      setCameraInfo(trackInfo)
 
       if (!videoElement) {
         stopTracks(stream)
         streamRef.current = null
+        initialSettingsRef.current = null
         setError('Video non pronto. Riprova tra un istante.')
         setStatus('idle')
         return
@@ -83,10 +98,16 @@ export function useCamera(): UseCameraResult {
 
       videoElement.srcObject = stream
       await videoElement.play()
+      const refreshedTrackInfo = readActiveTrackInfo(stream)
+      if (refreshedTrackInfo) {
+        initialSettingsRef.current = refreshedTrackInfo.settings ?? initialSettingsRef.current
+        setCameraInfo(refreshedTrackInfo)
+      }
       setStatus('ready')
     } catch (caughtError) {
       stopTracks(streamRef.current)
       streamRef.current = null
+      initialSettingsRef.current = null
       setCameraInfo(null)
       setStatus('idle')
       setError(getCameraErrorMessage(caughtError))
@@ -128,11 +149,100 @@ export function useCamera(): UseCameraResult {
       brightness: payload.brightness,
       contrast: payload.contrast,
       saturation: payload.saturation,
+      sharpness: payload.sharpness,
       colorTemperatureHint: payload.colorTemperatureHint,
       score: payload.score,
       suggestion: payload.suggestion,
       renderingAdvice: payload.renderingAdvice,
     }
+  }
+
+  const setZoom = async (value: number) => {
+    if (!cameraInfo?.controlSupport.supportsZoom) {
+      return getUnsupportedControlResult()
+    }
+
+    return applyCameraConstraint({ zoom: value })
+  }
+
+  const setTorch = async (on: boolean) => {
+    if (!cameraInfo?.controlSupport.supportsTorch) {
+      return getUnsupportedControlResult()
+    }
+
+    return applyCameraConstraint({ torch: on })
+  }
+
+  const setExposureCompensation = async (value: number) => {
+    if (!cameraInfo?.controlSupport.supportsExposureCompensation) {
+      return getUnsupportedControlResult()
+    }
+
+    return applyCameraConstraint({ exposureCompensation: value })
+  }
+
+  const setFocusMode = async (mode: string) => {
+    if (!cameraInfo?.controlSupport.supportsFocusMode) {
+      return getUnsupportedControlResult()
+    }
+
+    return applyCameraConstraint({ focusMode: mode })
+  }
+
+  const resetCameraControls = async () => {
+    const initialSettings = initialSettingsRef.current
+    const controlSupport = cameraInfo?.controlSupport
+
+    if (!controlSupport || !initialSettings) {
+      return {
+        ok: false,
+        error:
+          'Nessun controllo camera disponibile da ripristinare in questo momento.',
+      }
+    }
+
+    const resetConstraints: CameraConstraintSet = {}
+
+    if (controlSupport.supportsZoom && typeof initialSettings.zoom === 'number') {
+      resetConstraints.zoom = initialSettings.zoom
+    }
+
+    if (controlSupport.supportsTorch && typeof initialSettings.torch === 'boolean') {
+      resetConstraints.torch = initialSettings.torch
+    }
+
+    if (
+      controlSupport.supportsExposureCompensation &&
+      typeof initialSettings.exposureCompensation === 'number'
+    ) {
+      resetConstraints.exposureCompensation = initialSettings.exposureCompensation
+    }
+
+    if (controlSupport.supportsFocusMode && typeof initialSettings.focusMode === 'string') {
+      resetConstraints.focusMode = initialSettings.focusMode
+    }
+
+    if (Object.keys(resetConstraints).length === 0) {
+      return {
+        ok: false,
+        error:
+          'La camera non espone controlli ripristinabili in questo browser.',
+      }
+    }
+
+    return applyCameraConstraint(resetConstraints)
+  }
+
+  async function applyCameraConstraint(constraintSet: CameraConstraintSet) {
+    const track = getActiveTrack(streamRef.current)
+    const result = await applyAdvancedConstraint(track, constraintSet)
+
+    if (result.ok) {
+      const refreshedTrackInfo = track ? readCameraTrackInfo(track) : null
+      setCameraInfo(refreshedTrackInfo)
+    }
+
+    return result
   }
 
   return {
@@ -142,6 +252,11 @@ export function useCamera(): UseCameraResult {
     cameraInfo,
     startCamera,
     stopCamera,
+    setZoom,
+    setTorch,
+    setExposureCompensation,
+    setFocusMode,
+    resetCameraControls,
     captureSnapshot,
   }
 }
@@ -164,85 +279,25 @@ function getCameraErrorMessage(caughtError: unknown): string {
   return 'Impossibile avviare la camera. Controlla permessi e disponibilita del dispositivo.'
 }
 
-function readCameraTrackInfo(stream: MediaStream): CameraTrackInfo | null {
-  const track = stream.getVideoTracks()[0]
+function readActiveTrackInfo(stream: MediaStream | null) {
+  const track = getActiveTrack(stream)
   if (!track) {
     return null
   }
 
-  const settings = typeof track.getSettings === 'function' ? track.getSettings() : {}
+  return readCameraTrackInfo(track)
+}
 
+function getActiveTrack(stream: MediaStream | null) {
+  return stream?.getVideoTracks()[0] ?? null
+}
+
+function getUnsupportedControlResult(): CameraControlResult {
   return {
-    label: track.label || null,
-    facingMode: typeof settings.facingMode === 'string' ? settings.facingMode : null,
-    capabilities: readTrackCapabilities(track),
+    ok: false,
+    error:
+      'Controllo non disponibile in questo browser. PROimago puo comunque suggerire come usare la lente o cambiare angolo.',
   }
-}
-
-function readTrackCapabilities(track: MediaStreamTrack): CameraCapabilitiesSummary {
-  if (typeof track.getCapabilities !== 'function') {
-    return {
-      supported: false,
-      zoom: null,
-      focusMode: null,
-      exposureMode: null,
-      torch: null,
-      error: 'Capabilities non esposte dal browser.',
-    }
-  }
-
-  try {
-    const capabilities = track.getCapabilities() as Record<string, unknown>
-    return {
-      supported: true,
-      zoom: getNumericCapability(capabilities.zoom),
-      focusMode: getStringArray(capabilities.focusMode),
-      exposureMode: getStringArray(capabilities.exposureMode),
-      torch: typeof capabilities.torch === 'boolean' ? capabilities.torch : null,
-    }
-  } catch {
-    return {
-      supported: false,
-      zoom: null,
-      focusMode: null,
-      exposureMode: null,
-      torch: null,
-      error: 'Impossibile leggere le capabilities della camera.',
-    }
-  }
-}
-
-function getNumericCapability(value: unknown): CameraNumericCapability | null {
-  if (!value || typeof value !== 'object') {
-    return null
-  }
-
-  const maybeRange = value as Record<string, unknown>
-  if (
-    typeof maybeRange.min !== 'number' ||
-    typeof maybeRange.max !== 'number' ||
-    typeof maybeRange.step !== 'number'
-  ) {
-    return null
-  }
-
-  return {
-    min: maybeRange.min,
-    max: maybeRange.max,
-    step: maybeRange.step,
-  }
-}
-
-function getStringArray(value: unknown): string[] | null {
-  if (Array.isArray(value)) {
-    return value.filter((item): item is string => typeof item === 'string')
-  }
-
-  if (typeof value === 'string') {
-    return [value]
-  }
-
-  return null
 }
 
 function stopTracks(stream: MediaStream | null) {

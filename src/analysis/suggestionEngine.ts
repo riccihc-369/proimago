@@ -1,6 +1,7 @@
 import type {
   CameraStatus,
   FrameAnalysis,
+  LensAdvice,
   PhotoCategory,
   Suggestion,
   SuggestionFamily,
@@ -22,14 +23,20 @@ export function createSuggestion(
     )
   }
 
+  const sharpnessSuggestion = getSharpnessSuggestion(category, analysis)
   const generalSuggestion = getGeneralSuggestion(category, analysis)
-  if (generalSuggestion) {
-    return generalSuggestion
-  }
-
   const categorySuggestion = getCategorySuggestion(category, analysis)
-  if (categorySuggestion) {
-    return categorySuggestion
+  const cameraAdviceSuggestion = getCameraAdviceSuggestion(category, analysis)
+
+  const prioritizedSuggestion = pickHighestPrioritySuggestion(
+    sharpnessSuggestion,
+    generalSuggestion,
+    categorySuggestion,
+    cameraAdviceSuggestion,
+  )
+
+  if (prioritizedSuggestion) {
+    return prioritizedSuggestion
   }
 
   return buildSuggestion(
@@ -42,10 +49,54 @@ export function createSuggestion(
   )
 }
 
+function getSharpnessSuggestion(
+  category: PhotoCategory,
+  analysis: FrameAnalysis,
+): Suggestion | null {
+  const isCriticalCategory = needsSharpnessPriority(category.id)
+  const warningThreshold = isCriticalCategory ? 36 : 28
+  const improveThreshold = isCriticalCategory ? 54 : 44
+
+  if (analysis.sharpness <= warningThreshold) {
+    return buildSuggestion(
+      `sharpness-warning-${category.id}`,
+      'La scena sembra poco nitida: stabilizza il telefono prima di scattare.',
+      'warning',
+      'framing',
+      isCriticalCategory ? 96 : 92,
+      3200,
+    )
+  }
+
+  if (analysis.sharpness <= improveThreshold) {
+    return buildSuggestion(
+      `sharpness-improve-${category.id}`,
+      "Tieni fermo il telefono e lascia stabilizzare l'inquadratura.",
+      'improve',
+      'framing',
+      isCriticalCategory ? 82 : 72,
+      2800,
+    )
+  }
+
+  return null
+}
+
 function getGeneralSuggestion(
   category: PhotoCategory,
   analysis: FrameAnalysis,
 ): Suggestion | null {
+  if (analysis.brightness > 84 && analysis.contrast < 30) {
+    return buildSuggestion(
+      'general-highlights-clipped',
+      'La scena sembra troppo forte o bruciata: cambia angolo o riduci i riflessi diretti.',
+      'warning',
+      'light',
+      98,
+      2600,
+    )
+  }
+
   if (analysis.brightness < 28) {
     return buildSuggestion(
       'general-low-light',
@@ -73,7 +124,7 @@ function getGeneralSuggestion(
       'Saturazione bassa: cerca luce migliore o un angolo con colori piu ricchi.',
       'improve',
       'color',
-      82,
+      34,
     )
   }
 
@@ -83,7 +134,7 @@ function getGeneralSuggestion(
       'I colori sono troppo aggressivi: evita luce artificiale o sfondi cromaticamente invadenti.',
       'improve',
       'color',
-      78,
+      30,
     )
   }
 
@@ -98,6 +149,25 @@ function getGeneralSuggestion(
   }
 
   return null
+}
+
+function getCameraAdviceSuggestion(
+  category: PhotoCategory,
+  analysis: FrameAnalysis,
+): Suggestion | null {
+  const advice = getLensAdvice(category, analysis)
+  if (!advice) {
+    return null
+  }
+
+  return buildSuggestion(
+    `camera-${category.id}-${advice.id}`,
+    advice.text,
+    advice.severity ?? 'info',
+    'camera',
+    advice.priority,
+    2600,
+  )
 }
 
 function getCategorySuggestion(
@@ -176,6 +246,151 @@ function getAutoSuggestion(analysis: FrameAnalysis): Suggestion {
     24,
     2400,
   )
+}
+
+function getLensAdvice(
+  category: PhotoCategory,
+  analysis: FrameAnalysis,
+): LensAdvice | null {
+  switch (category.id) {
+    case 'architecture':
+      if (analysis.dominantSpread > 0.33) {
+        return buildLensAdvice(
+          'architecture-1x',
+          'Arretra e usa 1x per mantenere proporzioni piu credibili.',
+          52,
+          'improve',
+        )
+      }
+
+      if (analysis.dominantPoint.y > 0.62) {
+        return buildLensAdvice(
+          'architecture-05x-vertical',
+          'Se devi usare 0.5x, tieni il telefono perfettamente verticale.',
+          46,
+        )
+      }
+
+      return buildLensAdvice(
+        'architecture-ultrawide',
+        'Evita il grandangolo estremo se deforma gli spigoli.',
+        42,
+      )
+    case 'interiors':
+      if (analysis.dominantSpread > 0.32) {
+        return buildLensAdvice(
+          'interiors-1x',
+          'Arretra e usa 1x per mantenere proporzioni piu credibili.',
+          50,
+          'improve',
+        )
+      }
+
+      if (analysis.dominantPoint.y > 0.62) {
+        return buildLensAdvice(
+          'interiors-05x-vertical',
+          'Se devi usare 0.5x, tieni il telefono perfettamente verticale.',
+          44,
+        )
+      }
+
+      return buildLensAdvice(
+        'interiors-ultrawide',
+        'Evita il grandangolo estremo se deforma gli spigoli.',
+        40,
+      )
+    case 'portrait':
+      if (analysis.dominantSpread > 0.34) {
+        return buildLensAdvice(
+          'portrait-avoid-wide',
+          'Evita il grandangolo vicino al volto: puo deformare i lineamenti.',
+          50,
+          'improve',
+        )
+      }
+
+      return buildLensAdvice(
+        'portrait-2x',
+        'Usa 2x se disponibile per isolare meglio il volto.',
+        42,
+      )
+    case 'product':
+      if (analysis.brightness < 38) {
+        return buildLensAdvice(
+          'product-flash',
+          'Evita flash diretto: cerca luce laterale morbida.',
+          48,
+          'improve',
+        )
+      }
+
+      return buildLensAdvice(
+        'product-1x-2x',
+        'Usa 1x o 2x per ridurre deformazioni del prodotto.',
+        44,
+      )
+    case 'plants':
+      if (analysis.contrast > 72 || analysis.brightness > 74) {
+        return buildLensAdvice(
+          'plants-side-light',
+          'Evita luce frontale troppo dura: cerca luce laterale.',
+          44,
+          'improve',
+        )
+      }
+
+      return buildLensAdvice(
+        'plants-normal-2x',
+        'Avvicinati con lente normale o 2x per isolare texture e foglie.',
+        40,
+      )
+    case 'technical_documentation':
+      if (analysis.brightness < 34 || analysis.sharpness < 46) {
+        return buildLensAdvice(
+          'technical-torch',
+          'Usa la luce continua solo se il dettaglio e poco leggibile.',
+          48,
+          'improve',
+        )
+      }
+
+      return buildLensAdvice(
+        'technical-front',
+        "Mantieni la lente stabile e frontale rispetto all'elemento tecnico.",
+        44,
+      )
+    case 'landscape':
+      if (analysis.dominantSpread < 0.24) {
+        return buildLensAdvice(
+          'landscape-foreground',
+          'Cerca un primo piano se usi 0.5x.',
+          42,
+        )
+      }
+
+      return buildLensAdvice(
+        'landscape-wide',
+        'Il grandangolo va bene se aggiunge profondita, ma evita bordi deformati.',
+        38,
+      )
+    case 'animals':
+      if (analysis.dominantSpread < 0.26 || analysis.dominantWeight < 42) {
+        return buildLensAdvice(
+          'animals-zoom',
+          "Usa zoom invece di avvicinarti troppo all'animale.",
+          46,
+          'improve',
+        )
+      }
+
+      return buildLensAdvice(
+        'animals-space',
+        "Lascia spazio nella direzione dello sguardo o del movimento.",
+        40,
+      )
+    default:
+      return null
+  }
 }
 
 function getArchitectureSuggestion(analysis: FrameAnalysis): Suggestion {
@@ -660,8 +875,31 @@ function getTechnicalDocumentationSuggestion(analysis: FrameAnalysis): Suggestio
   )
 }
 
+function buildLensAdvice(
+  id: string,
+  text: string,
+  priority: number,
+  severity?: LensAdvice['severity'],
+): LensAdvice {
+  return {
+    id,
+    text,
+    priority,
+    severity,
+  }
+}
+
 function allowsCenteredComposition(categoryId: PhotoCategory['id']) {
   return categoryId === 'product' || categoryId === 'technical_documentation'
+}
+
+function needsSharpnessPriority(categoryId: PhotoCategory['id']) {
+  return (
+    categoryId === 'plants' ||
+    categoryId === 'detail' ||
+    categoryId === 'product' ||
+    categoryId === 'technical_documentation'
+  )
 }
 
 function isTooCentral(analysis: FrameAnalysis) {
@@ -679,6 +917,22 @@ function isEdgeHeavy(analysis: FrameAnalysis) {
 
 function getCenterDistance(analysis: FrameAnalysis) {
   return Math.hypot(analysis.dominantPoint.x - 0.5, analysis.dominantPoint.y - 0.5)
+}
+
+function pickHighestPrioritySuggestion(
+  ...candidates: Array<Suggestion | null>
+) {
+  return candidates.reduce<Suggestion | null>((selectedSuggestion, candidate) => {
+    if (!candidate) {
+      return selectedSuggestion
+    }
+
+    if (!selectedSuggestion || candidate.priority > selectedSuggestion.priority) {
+      return candidate
+    }
+
+    return selectedSuggestion
+  }, null)
 }
 
 function buildSuggestion(

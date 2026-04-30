@@ -9,6 +9,7 @@ export const EMPTY_FRAME_ANALYSIS: FrameAnalysis = {
   brightness: 0,
   contrast: 0,
   saturation: 0,
+  sharpness: 0,
   colorTemperatureHint: undefined,
   dominantWeight: 0,
   topEmptySpace: 0,
@@ -68,6 +69,9 @@ export function analyzeFrame(
   let weightedY = 0
   let topEnergy = 0
   let totalEnergy = 0
+  let highFrequencyEnergy = 0
+  let crispEdgeCount = 0
+  let localContrastEnergy = 0
 
   for (let y = 0; y < SAMPLE_HEIGHT; y += 1) {
     for (let x = 0; x < SAMPLE_WIDTH; x += 1) {
@@ -87,11 +91,37 @@ export function analyzeFrame(
       if (y < SAMPLE_HEIGHT * 0.28) {
         topEnergy += energy
       }
+
+      if (x > 0 && x < SAMPLE_WIDTH - 1 && y > 0 && y < SAMPLE_HEIGHT - 1) {
+        const left = luminance[index - 1]
+        const up = luminance[index - SAMPLE_WIDTH]
+        const laplacian = Math.abs(4 * value - left - right - up - down)
+        highFrequencyEnergy += laplacian
+        localContrastEnergy += Math.abs(value - left) + Math.abs(value - up)
+
+        if (laplacian > 18) {
+          crispEdgeCount += 1
+        }
+      }
     }
   }
 
   const stdDeviation = Math.sqrt(varianceSum / pixelCount)
   const contrast = Math.round(Math.min(100, ((maxLuma - minLuma) / 255) * 100))
+  const interiorPixelCount = Math.max(1, (SAMPLE_WIDTH - 2) * (SAMPLE_HEIGHT - 2))
+  const averageHighFrequency = highFrequencyEnergy / interiorPixelCount
+  const crispEdgeShare = crispEdgeCount / interiorPixelCount
+  const averageLocalContrast = localContrastEnergy / (interiorPixelCount * 2)
+  const sharpness = clamp(
+    Math.round(
+      averageHighFrequency * 1.9 +
+        crispEdgeShare * 34 +
+        Math.min(16, averageLocalContrast * 0.28) -
+        Math.max(0, 18 - contrast) * 0.35,
+    ),
+    0,
+    100,
+  )
   const dominantPoint: Point =
     totalEnergy > 0
       ? {
@@ -114,11 +144,13 @@ export function analyzeFrame(
   score -= brightness < 28 ? 18 : brightness < 38 ? 8 : 0
   score -= contrast < 22 ? 12 : 0
   score -= saturation < 14 ? 8 : saturation > 82 ? 5 : 0
+  score -= sharpness < 24 ? 18 : sharpness < 40 ? 9 : 0
   score -= centerDistance < 0.16 ? 12 : 0
   score -= topEmptySpace > 62 ? 10 : 0
   score += brightness >= 38 && brightness <= 72 ? 6 : 0
   score += contrast >= 28 && contrast <= 60 ? 5 : 0
   score += saturation >= 18 && saturation <= 62 ? 4 : 0
+  score += sharpness >= 60 ? 4 : sharpness >= 48 ? 2 : 0
   score += centerDistance >= 0.16 && centerDistance <= 0.34 ? 4 : 0
   score = clamp(Math.round(score), 0, 100)
 
@@ -126,6 +158,7 @@ export function analyzeFrame(
     brightness,
     contrast,
     saturation,
+    sharpness,
     colorTemperatureHint: getColorTemperatureHint(averageRed, averageGreen, averageBlue, saturation),
     dominantWeight,
     topEmptySpace,
