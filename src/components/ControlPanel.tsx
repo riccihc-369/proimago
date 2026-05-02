@@ -15,6 +15,8 @@ import type {
   Suggestion,
 } from '../types'
 
+type ToolsTabId = 'finale' | 'preview' | 'camera' | 'debug'
+
 interface ControlPanelProps {
   analysis: FrameAnalysis
   cameraInfo: CameraTrackInfo | null
@@ -89,12 +91,17 @@ export function ControlPanel({
   onToggleFavoritePreview,
 }: ControlPanelProps) {
   const isDetailOpen = detailPanel !== null
+  const [activeToolsTab, setActiveToolsTab] = useState<ToolsTabId>('finale')
   const primaryActionDisabled =
     status === 'requesting' || (isFieldActive ? !canCapture : !canStart)
   const primaryActionLabel = status === 'requesting' ? 'Attendi' : isFieldActive ? 'Scatta' : 'Avvia'
   const primaryActionHint = status === 'requesting' ? 'camera' : isFieldActive ? 'preview' : 'live'
   const categoryLabel = category.shortLabel ?? category.label
   const toolsMeta = snapshots.length > 0 ? `${Math.min(99, snapshots.length)} prev.` : 'tools'
+  const handleOpenToolsPanel = () => {
+    setActiveToolsTab('finale')
+    onOpenDetailPanel('tools')
+  }
 
   return (
     <section className={`hud-controls hud-${hudState}`} aria-label="Controlli live">
@@ -104,7 +111,7 @@ export function ControlPanel({
 
           <div className="detail-sheet-header">
             <div>
-              <span className="detail-sheet-kicker">PROimago V0.1.9</span>
+              <span className="detail-sheet-kicker">PROimago V0.1.10</span>
               <h2>{getPanelTitle(detailPanel)}</h2>
               <p>{getPanelSubtitle(detailPanel)}</p>
             </div>
@@ -118,6 +125,16 @@ export function ControlPanel({
             </button>
           </div>
 
+          {detailPanel === 'tools' ? (
+            <div className="detail-sheet-tabs" aria-label="Sezioni tools">
+              <ToolsTabBar
+                activeTab={activeToolsTab}
+                previewCount={snapshots.length}
+                onChangeTab={setActiveToolsTab}
+              />
+            </div>
+          ) : null}
+
           <div className="detail-sheet-body">
             {detailPanel === 'category' ? (
               <CategoryPanel
@@ -130,6 +147,7 @@ export function ControlPanel({
             {detailPanel === 'tools' ? (
               <ToolsPanel
                 analysis={analysis}
+                activeTab={activeToolsTab}
                 cameraInfo={cameraInfo}
                 canStart={canStart}
                 canStop={canStop}
@@ -144,6 +162,7 @@ export function ControlPanel({
                 suggestion={suggestion}
                 videoHeight={videoHeight}
                 videoWidth={videoWidth}
+                onChangeTab={setActiveToolsTab}
                 onDeletePreview={onDeletePreview}
                 onSelectReferencePreview={onSelectReferencePreview}
                 onStart={onStart}
@@ -182,7 +201,7 @@ export function ControlPanel({
           label="Altro"
           meta={isFieldActive ? toolsMeta : 'setup'}
           isActive={detailPanel === 'tools'}
-          onClick={() => onOpenDetailPanel('tools')}
+          onClick={handleOpenToolsPanel}
         />
       </div>
     </section>
@@ -251,9 +270,8 @@ function CategoryPanel({ category, categories, onSelectCategory }: CategoryPanel
   )
 }
 
-type ToolsTabId = 'finale' | 'preview' | 'camera' | 'debug'
-
 interface ToolsPanelProps {
+  activeTab: ToolsTabId
   analysis: FrameAnalysis
   cameraInfo: CameraTrackInfo | null
   canStart: boolean
@@ -269,6 +287,7 @@ interface ToolsPanelProps {
   suggestion: Suggestion
   videoHeight: number
   videoWidth: number
+  onChangeTab: (tabId: ToolsTabId) => void
   onDeletePreview: (previewId: string) => void
   onSelectReferencePreview: (previewId: string) => void
   onStart: () => Promise<void>
@@ -282,6 +301,7 @@ interface ToolsPanelProps {
 }
 
 function ToolsPanel({
+  activeTab,
   analysis,
   cameraInfo,
   canStart,
@@ -297,6 +317,7 @@ function ToolsPanel({
   suggestion,
   videoHeight,
   videoWidth,
+  onChangeTab,
   onDeletePreview,
   onSelectReferencePreview,
   onStart,
@@ -308,7 +329,6 @@ function ToolsPanel({
   onSetFocusMode,
   onResetCameraControls,
 }: ToolsPanelProps) {
-  const [activeTab, setActiveTab] = useState<ToolsTabId>('finale')
   const composition = getCompositionScore(analysis)
   const aspectRatio =
     videoWidth > 0 && videoHeight > 0 ? (videoWidth / videoHeight).toFixed(2) : '--'
@@ -319,33 +339,6 @@ function ToolsPanel({
 
   return (
     <div className="sheet-layout">
-      <div className="sheet-tab-row" role="tablist" aria-label="Sezioni tools">
-        <ToolsTabButton
-          tabId="finale"
-          label="Finale"
-          isActive={activeTab === 'finale'}
-          onClick={() => setActiveTab('finale')}
-        />
-        <ToolsTabButton
-          tabId="preview"
-          label={snapshots.length > 0 ? `Preview ${snapshots.length}` : 'Preview'}
-          isActive={activeTab === 'preview'}
-          onClick={() => setActiveTab('preview')}
-        />
-        <ToolsTabButton
-          tabId="camera"
-          label="Camera"
-          isActive={activeTab === 'camera'}
-          onClick={() => setActiveTab('camera')}
-        />
-        <ToolsTabButton
-          tabId="debug"
-          label="Debug"
-          isActive={activeTab === 'debug'}
-          onClick={() => setActiveTab('debug')}
-        />
-      </div>
-
       {activeTab === 'finale' ? (
         <>
           <section className="sheet-section">
@@ -399,7 +392,7 @@ function ToolsPanel({
                 <button
                   type="button"
                   className="sheet-action-button"
-                  onClick={() => setActiveTab('preview')}
+                  onClick={() => onChangeTab('preview')}
                 >
                   Apri anteprime
                 </button>
@@ -616,6 +609,43 @@ interface ToolsTabButtonProps {
   label: string
   isActive: boolean
   onClick: () => void
+}
+
+interface ToolsTabBarProps {
+  activeTab: ToolsTabId
+  previewCount: number
+  onChangeTab: (tabId: ToolsTabId) => void
+}
+
+function ToolsTabBar({ activeTab, previewCount, onChangeTab }: ToolsTabBarProps) {
+  return (
+    <div className="sheet-tab-row" role="tablist" aria-label="Sezioni tools">
+      <ToolsTabButton
+        tabId="finale"
+        label="Finale"
+        isActive={activeTab === 'finale'}
+        onClick={() => onChangeTab('finale')}
+      />
+      <ToolsTabButton
+        tabId="preview"
+        label={previewCount > 0 ? `Preview ${previewCount}` : 'Preview'}
+        isActive={activeTab === 'preview'}
+        onClick={() => onChangeTab('preview')}
+      />
+      <ToolsTabButton
+        tabId="camera"
+        label="Camera"
+        isActive={activeTab === 'camera'}
+        onClick={() => onChangeTab('camera')}
+      />
+      <ToolsTabButton
+        tabId="debug"
+        label="Debug"
+        isActive={activeTab === 'debug'}
+        onClick={() => onChangeTab('debug')}
+      />
+    </div>
+  )
 }
 
 function ToolsTabButton({ tabId, label, isActive, onClick }: ToolsTabButtonProps) {
@@ -893,7 +923,7 @@ function getPanelSubtitle(detailPanel: DetailPanelId) {
       return 'Scegli il tipo di scena senza lasciare la live view.'
     case 'tools':
     default:
-      return 'Finale, preview, camera e debug in un pannello compatto senza sporcare la scena.'
+      return 'Tools Tabs + Export UX con sezioni chiare e controlli compatti.'
   }
 }
 

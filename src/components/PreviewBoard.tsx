@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { getFinalReadinessSummary } from '../analysis/finalReadiness'
 import { decideBestPreview, getReferencePreviewHint } from '../analysis/previewDecision'
-import { canCopyPreviewImage, copyPreviewImage, savePreviewImage, sharePreviewImage } from '../utils/exportPreview'
+import { copyPreviewImage, savePreviewImage, sharePreviewImage } from '../utils/exportPreview'
 import type { FinalShotReadiness, SnapshotItem, SuggestionSeverity } from '../types'
 
 interface PreviewBoardProps {
@@ -160,8 +160,8 @@ function PreviewDetail({
   onToggleFavorite,
 }: PreviewDetailProps) {
   const isReference = preview.id === selectedReferencePreviewId
-  const canCopyImage = canCopyPreviewImage()
   const [exportMessage, setExportMessage] = useState<string | null>(null)
+  const exportTimerRef = useRef<number | null>(null)
   const finalReadinessSummary = getFinalReadinessSummary(
     preview.score,
     preview.shootingConditions,
@@ -173,19 +173,39 @@ function PreviewDetail({
   )
   const finalReadinessReason = preview.finalReadinessReason || finalReadinessSummary.finalReadinessReason
 
+  useEffect(() => {
+    return () => {
+      if (exportTimerRef.current !== null) {
+        window.clearTimeout(exportTimerRef.current)
+      }
+    }
+  }, [])
+
+  const showExportMessage = (message: string) => {
+    if (exportTimerRef.current !== null) {
+      window.clearTimeout(exportTimerRef.current)
+    }
+
+    setExportMessage(message)
+    exportTimerRef.current = window.setTimeout(() => {
+      setExportMessage(null)
+      exportTimerRef.current = null
+    }, 2600)
+  }
+
   const handleSave = async () => {
     const result = await savePreviewImage(preview)
-    setExportMessage(result.message)
+    showExportMessage(result.message)
   }
 
   const handleShare = async () => {
     const result = await sharePreviewImage(preview)
-    setExportMessage(result.message)
+    showExportMessage(result.message)
   }
 
   const handleCopy = async () => {
     const result = await copyPreviewImage(preview)
-    setExportMessage(result.message)
+    showExportMessage(result.message)
   }
 
   return (
@@ -193,9 +213,11 @@ function PreviewDetail({
       <img src={preview.imageDataUrl} alt="Anteprima selezionata" className="preview-detail-image" />
 
       <div className="preview-detail-body">
-        <div className="sheet-inline-header">
-          <strong>{`${preview.categoryLabel} · Preview #${previewNumber}`}</strong>
-          <span>{finalReadinessSummary.baseScoreLabel}</span>
+        <div className="preview-detail-headline">
+          <strong>
+            {`Preview #${previewNumber} · ${preview.categoryLabel} · ${finalReadinessSummary.baseScoreLabel} · Finale ${finalReadinessSummary.finalReadinessLabel.toLowerCase()}`}
+          </strong>
+          <span>{formatTimestamp(preview.createdAt)}</span>
         </div>
 
         <div className="sheet-detail-list">
@@ -259,38 +281,53 @@ function PreviewDetail({
           ) : null}
         </div>
 
-        <div className="sheet-action-row preview-detail-actions">
-          <button type="button" className="sheet-action-button accent" onClick={() => void handleSave()}>
-            Salva / Esporta
-          </button>
-          <button type="button" className="sheet-action-button" onClick={() => void handleShare()}>
-            Condividi
-          </button>
-          {canCopyImage ? (
-            <button type="button" className="sheet-action-button" onClick={() => void handleCopy()}>
-              Copia immagine
-            </button>
-          ) : null}
-          <button type="button" className="sheet-action-button" onClick={onToggleFavorite}>
-            {preview.isFavorite ? 'Togli preferita' : 'Preferita'}
-          </button>
-          <button
-            type="button"
-            className="sheet-action-button"
-            onClick={onSelectReference}
-            disabled={isReference}
-          >
-            {isReference ? 'Riferimento attivo' : 'Usa come riferimento'}
-          </button>
-          <button type="button" className="sheet-action-button" onClick={onDelete}>
-            Elimina
-          </button>
-          <button type="button" className="sheet-action-button" onClick={onClose}>
+        <div className="preview-action-groups">
+          <section className="preview-action-group">
+            <div className="preview-action-header">
+              <strong>Esporta</strong>
+            </div>
+            <div className="preview-action-grid">
+              <button type="button" className="sheet-action-button accent compact" onClick={() => void handleSave()}>
+                Salva
+              </button>
+              <button type="button" className="sheet-action-button compact" onClick={() => void handleShare()}>
+                Condividi
+              </button>
+              <button type="button" className="sheet-action-button compact" onClick={() => void handleCopy()}>
+                Copia
+              </button>
+            </div>
+          </section>
+
+          <section className="preview-action-group">
+            <div className="preview-action-header">
+              <strong>Selezione</strong>
+            </div>
+            <div className="preview-action-grid">
+              <button type="button" className="sheet-action-button compact" onClick={onToggleFavorite}>
+                {preview.isFavorite ? 'Togli pref.' : 'Preferita'}
+              </button>
+              <button
+                type="button"
+                className="sheet-action-button compact"
+                onClick={onSelectReference}
+                disabled={isReference}
+              >
+                {isReference ? 'Riferimento' : 'Usa rif.'}
+              </button>
+              <button type="button" className="sheet-action-button compact" onClick={onDelete}>
+                Elimina
+              </button>
+            </div>
+          </section>
+        </div>
+
+        <div className="preview-detail-footer">
+          {exportMessage ? <p className="preview-export-feedback">{exportMessage}</p> : <span />}
+          <button type="button" className="sheet-action-button compact preview-close-button" onClick={onClose}>
             Chiudi
           </button>
         </div>
-
-        {exportMessage ? <p className="sheet-support-note">{exportMessage}</p> : null}
       </div>
     </section>
   )

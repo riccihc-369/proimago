@@ -25,13 +25,13 @@ export async function savePreviewImage(preview: SnapshotItem): Promise<ExportRes
     return {
       ok: true,
       status: 'saved',
-      message: 'Preview esportata in JPEG sul dispositivo.',
+      message: 'Immagine pronta per il salvataggio.',
     }
   } catch {
     return {
       ok: false,
       status: 'error',
-      message: 'Impossibile esportare la preview in questo momento.',
+      message: 'Azione non disponibile in questo browser. Usa Salva / Esporta.',
     }
   }
 }
@@ -55,21 +55,16 @@ export async function sharePreviewImage(preview: SnapshotItem): Promise<ExportRe
         return {
           ok: true,
           status: 'shared',
-          message: 'Preview condivisa.',
-        }
-      }
-
-      const previewWindow = window.open(preview.imageDataUrl, '_blank', 'noopener,noreferrer')
-      if (previewWindow) {
-        return {
-          ok: true,
-          status: 'opened',
-          message: "Anteprima aperta in una nuova scheda per salvarla o condividerla.",
+          message: 'Condivisione aperta.',
         }
       }
     }
 
-    return savePreviewImage(preview)
+    return {
+      ok: false,
+      status: 'error',
+      message: 'Azione non disponibile in questo browser. Usa Salva / Esporta.',
+    }
   } catch (caughtError) {
     if (caughtError instanceof DOMException && caughtError.name === 'AbortError') {
       return {
@@ -82,7 +77,7 @@ export async function sharePreviewImage(preview: SnapshotItem): Promise<ExportRe
     return {
       ok: false,
       status: 'error',
-      message: 'Impossibile condividere la preview in questo momento.',
+      message: 'Azione non disponibile in questo browser. Usa Salva / Esporta.',
     }
   }
 }
@@ -92,7 +87,7 @@ export async function copyPreviewImage(preview: SnapshotItem): Promise<ExportRes
     return {
       ok: false,
       status: 'error',
-      message: "Copia immagine non disponibile in questo browser.",
+      message: 'Copia non supportata: usa Condividi.',
     }
   }
 
@@ -106,13 +101,13 @@ export async function copyPreviewImage(preview: SnapshotItem): Promise<ExportRes
     return {
       ok: true,
       status: 'copied',
-      message: 'Immagine copiata negli appunti.',
+      message: 'Immagine copiata.',
     }
   } catch {
     return {
       ok: false,
       status: 'error',
-      message: "Impossibile copiare l'immagine negli appunti.",
+      message: 'Copia non supportata: usa Condividi.',
     }
   }
 }

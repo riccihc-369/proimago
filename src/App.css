@@ -651,6 +651,11 @@ button {
   font-weight: 600;
 }
 
+.detail-sheet-tabs {
+  margin: 6px 0 10px;
+  padding: 0 2px;
+}
+
 .detail-sheet-body {
   overflow: auto;
   max-height: calc(min(58dvh, 560px) - 96px);
@@ -741,11 +746,20 @@ button {
 
 .sheet-tab-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sheet-tab-row::-webkit-scrollbar {
+  display: none;
 }
 
 .sheet-tab-button {
+  flex: 0 0 auto;
   min-height: 34px;
   padding: 0 12px;
   border: 1px solid rgba(214, 226, 249, 0.1);
@@ -1079,14 +1093,21 @@ button {
 
 .sheet-action-button {
   flex: 1 1 0;
-  min-height: 44px;
-  padding: 0 14px;
+  min-height: 40px;
+  padding: 0 12px;
   border: 1px solid rgba(214, 226, 249, 0.1);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text);
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 700;
+}
+
+.sheet-action-button.compact {
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 14px;
+  font-size: 0.74rem;
 }
 
 .sheet-action-button.accent {
@@ -1244,8 +1265,8 @@ button {
 
 .preview-detail-card {
   display: grid;
-  gap: 12px;
-  padding: 12px;
+  gap: 10px;
+  padding: 11px;
   border: 1px solid rgba(214, 226, 249, 0.1);
   border-radius: 22px;
   background: rgba(8, 11, 16, 0.28);
@@ -1253,7 +1274,7 @@ button {
 
 .preview-detail-image {
   width: 100%;
-  max-height: min(38dvh, 320px);
+  max-height: min(31dvh, 260px);
   border: 1px solid rgba(214, 226, 249, 0.12);
   border-radius: 18px;
   object-fit: cover;
@@ -1261,7 +1282,64 @@ button {
 
 .preview-detail-body {
   display: grid;
+  gap: 8px;
+}
+
+.preview-detail-headline,
+.preview-action-header,
+.preview-detail-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   gap: 10px;
+}
+
+.preview-detail-headline {
+  flex-wrap: wrap;
+}
+
+.preview-detail-headline strong,
+.preview-detail-headline span,
+.preview-action-header strong,
+.preview-export-feedback {
+  display: block;
+}
+
+.preview-detail-headline strong {
+  font-size: 0.8rem;
+  letter-spacing: 0.03em;
+}
+
+.preview-detail-headline span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.preview-action-groups {
+  display: grid;
+  gap: 10px;
+}
+
+.preview-action-group {
+  display: grid;
+  gap: 6px;
+}
+
+.preview-action-header strong {
+  color: var(--muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.preview-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.preview-action-grid > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
 }
 
 .preview-reference-callout {
@@ -1312,13 +1390,28 @@ button {
 .preview-detail-metrics {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .preview-detail-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.preview-detail-footer {
+  margin-top: 2px;
+}
+
+.preview-export-feedback {
+  color: var(--accent);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.preview-close-button {
+  flex: 0 0 auto;
+  min-width: 88px;
 }
 
 .action-bar {
