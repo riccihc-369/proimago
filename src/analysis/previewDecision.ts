@@ -63,6 +63,12 @@ export function getReferencePreviewHint(preview: SnapshotItem) {
 function scorePreview(preview: SnapshotItem) {
   let total = preview.score * 1.12
 
+  if (preview.finalShotReadiness === 'not_ideal') {
+    total -= 20
+  } else if (preview.finalShotReadiness === 'usable') {
+    total -= 8
+  }
+
   if (preview.brightness < 22) {
     total -= 18
   } else if (preview.brightness < 32) {
@@ -89,6 +95,10 @@ function scorePreview(preview: SnapshotItem) {
     }
   }
 
+  if (preview.shootingConditions.lowLight) {
+    total -= 9
+  }
+
   if (preview.isFavorite) {
     total += 4
   }
@@ -113,6 +123,12 @@ function buildDecisionReason(preview: SnapshotItem, fromFavorites: boolean) {
 
   if (typeof preview.sharpness === 'number' && preview.sharpness >= 48) {
     reasons.push('nitidezza affidabile')
+  }
+
+  if (preview.finalShotReadiness === 'good') {
+    reasons.push('condizioni piu affidabili')
+  } else if (!preview.shootingConditions.lowLight && preview.finalShotReadiness === 'usable') {
+    reasons.push('base gia usabile')
   }
 
   const conciseReason =

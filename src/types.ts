@@ -38,6 +38,9 @@ export type SuggestionFamily =
   | 'category'
 
 export type ColorTemperatureHint = 'cool' | 'neutral' | 'warm'
+export type ColorReliability = 'low' | 'medium' | 'good'
+export type StabilityHint = 'unstable' | 'acceptable' | 'good'
+export type FinalShotReadiness = 'not_ideal' | 'usable' | 'good'
 
 export interface Point {
   x: number
@@ -87,6 +90,15 @@ export interface RenderingAdvice {
   colorTemperatureHint?: ColorTemperatureHint
 }
 
+export interface ShootingConditions {
+  lowLight: boolean
+  harshLight: boolean
+  artificialLightLikely: boolean
+  colorReliability: ColorReliability
+  stabilityHint: StabilityHint
+  finalShotReadiness: FinalShotReadiness
+}
+
 export interface SnapshotCameraSettings {
   zoom?: number
   facingMode?: string
@@ -107,6 +119,9 @@ export interface SnapshotCapturePayload {
   suggestionText: string
   suggestionFamily: SuggestionFamily
   suggestionSeverity: SuggestionSeverity
+  shootingConditions: ShootingConditions
+  finalShotReadiness: FinalShotReadiness
+  conditionAdvice: string
   cameraSettings?: SnapshotCameraSettings
 }
 
@@ -126,6 +141,9 @@ export interface SnapshotItem {
   saturation: number
   sharpness?: number
   colorTemperatureHint?: ColorTemperatureHint
+  shootingConditions: ShootingConditions
+  finalShotReadiness: FinalShotReadiness
+  conditionAdvice: string
   isFavorite: boolean
   note?: string
   cameraSettings?: SnapshotCameraSettings

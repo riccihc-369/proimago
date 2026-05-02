@@ -3,6 +3,7 @@ import type { FrameAnalysis, HudState, PhotoCategory, Suggestion } from '../type
 interface OverlayGridProps {
   analysis: FrameAnalysis
   category: PhotoCategory
+  conditionPillLabel?: string | null
   hasReferencePreview?: boolean
   hudState: HudState
   referenceHint?: string | null
@@ -12,6 +13,7 @@ interface OverlayGridProps {
 export function OverlayGrid({
   analysis,
   category,
+  conditionPillLabel = null,
   hasReferencePreview = false,
   hudState,
   referenceHint = null,
@@ -44,6 +46,9 @@ export function OverlayGrid({
           <div className="mode-badge">{category.shortLabel ?? category.label}</div>
           {hasReferencePreview ? (
             <div className="reference-pill">Riferimento attivo</div>
+          ) : null}
+          {conditionPillLabel ? (
+            <div className="condition-pill">{conditionPillLabel}</div>
           ) : null}
         </div>
         <div className={`score-chip ${getScoreTone(analysis.score)}`}>

@@ -5,11 +5,13 @@ import type {
   CameraStatus,
   CameraTrackInfo,
   DetailPanelId,
+  FinalShotReadiness,
   FrameAnalysis,
   HudState,
   PhotoCategory,
   PhotoCategoryId,
   SnapshotItem,
+  ShootingConditions,
   Suggestion,
 } from '../types'
 
@@ -29,6 +31,8 @@ interface ControlPanelProps {
   selectedReferencePreviewId: string | null
   snapshots: SnapshotItem[]
   status: CameraStatus
+  shootingConditionAdvice: string
+  shootingConditions: ShootingConditions
   suggestion: Suggestion
   videoHeight: number
   videoWidth: number
@@ -65,6 +69,8 @@ export function ControlPanel({
   selectedReferencePreviewId,
   snapshots,
   status,
+  shootingConditionAdvice,
+  shootingConditions,
   suggestion,
   videoHeight,
   videoWidth,
@@ -127,13 +133,13 @@ export function ControlPanel({
         </>
       ) : null}
 
-      {isDetailOpen ? (
+            {isDetailOpen ? (
         <div className="detail-sheet" id="detail-sheet" role="dialog" aria-modal="false">
           <div className="detail-sheet-handle" aria-hidden="true" />
 
           <div className="detail-sheet-header">
             <div>
-              <span className="detail-sheet-kicker">PROimago V0.1.6</span>
+              <span className="detail-sheet-kicker">PROimago V0.1.7</span>
               <h2>{getPanelTitle(detailPanel)}</h2>
               <p>{getPanelSubtitle(detailPanel)}</p>
             </div>
@@ -168,6 +174,8 @@ export function ControlPanel({
                 isFieldActive={isFieldActive}
                 selectedReferencePreviewId={selectedReferencePreviewId}
                 snapshots={snapshots}
+                shootingConditionAdvice={shootingConditionAdvice}
+                shootingConditions={shootingConditions}
                 suggestion={suggestion}
                 videoHeight={videoHeight}
                 videoWidth={videoWidth}
@@ -325,6 +333,8 @@ interface ToolsPanelProps {
   isFieldActive: boolean
   selectedReferencePreviewId: string | null
   snapshots: SnapshotItem[]
+  shootingConditionAdvice: string
+  shootingConditions: ShootingConditions
   suggestion: Suggestion
   videoHeight: number
   videoWidth: number
@@ -351,6 +361,8 @@ function ToolsPanel({
   isFieldActive,
   selectedReferencePreviewId,
   snapshots,
+  shootingConditionAdvice,
+  shootingConditions,
   suggestion,
   videoHeight,
   videoWidth,
@@ -436,6 +448,30 @@ function ToolsPanel({
             value={analysis.colorTemperatureHint ?? '--'}
             tone={analysis.colorTemperatureHint === 'warm' ? 'warn' : 'good'}
           />
+        </div>
+      </section>
+
+      <section className="sheet-section">
+        <div className="sheet-inline-header">
+          <strong>Condizioni di scatto</strong>
+          <span>{formatFinalShotReadiness(shootingConditions.finalShotReadiness)}</span>
+        </div>
+        <p className="sheet-body-copy">{shootingConditionAdvice}</p>
+        <div className="sheet-detail-list">
+          <span className={`sheet-badge ${getReadinessTone(shootingConditions.finalShotReadiness)}`}>
+            {formatFinalShotReadiness(shootingConditions.finalShotReadiness)}
+          </span>
+          <span className="sheet-chip">
+            {`Stabilita ${formatStabilityHint(shootingConditions.stabilityHint)}`}
+          </span>
+          <span className="sheet-chip">
+            {`Colori ${formatColorReliability(shootingConditions.colorReliability)}`}
+          </span>
+          {shootingConditions.lowLight ? <span className="sheet-chip">Poca luce</span> : null}
+          {shootingConditions.harshLight ? <span className="sheet-chip">Luce dura</span> : null}
+          {shootingConditions.artificialLightLikely ? (
+            <span className="sheet-chip">Luce artificiale probabile</span>
+          ) : null}
         </div>
       </section>
 
@@ -789,7 +825,7 @@ function getPanelSubtitle(detailPanel: DetailPanelId) {
       return 'Scegli il tipo di scena senza lasciare la live view.'
     case 'tools':
     default:
-      return 'Preview board, camera info, diagnostics e consigli completi senza sporcare la scena.'
+      return 'Preview board, condizioni di scatto, camera info e diagnostics senza sporcare la scena.'
   }
 }
 
@@ -804,6 +840,18 @@ function getSeverityLabel(severity: Suggestion['severity']) {
     case 'info':
     default:
       return 'Info'
+  }
+}
+
+function getReadinessTone(readiness: FinalShotReadiness) {
+  switch (readiness) {
+    case 'good':
+      return 'good' as const
+    case 'usable':
+      return 'improve' as const
+    case 'not_ideal':
+    default:
+      return 'warning' as const
   }
 }
 
@@ -940,4 +988,40 @@ function formatControlValue(value: number | undefined) {
 
 function getUnsupportedControlCopy() {
   return 'Controllo non disponibile in questo browser. PROimago puo comunque suggerire come usare la lente o cambiare angolo.'
+}
+
+function formatFinalShotReadiness(readiness: FinalShotReadiness) {
+  switch (readiness) {
+    case 'good':
+      return 'buona'
+    case 'usable':
+      return 'usabile'
+    case 'not_ideal':
+    default:
+      return 'non ideale'
+  }
+}
+
+function formatStabilityHint(stabilityHint: ShootingConditions['stabilityHint']) {
+  switch (stabilityHint) {
+    case 'good':
+      return 'buona'
+    case 'acceptable':
+      return 'accettabile'
+    case 'unstable':
+    default:
+      return 'instabile'
+  }
+}
+
+function formatColorReliability(colorReliability: ShootingConditions['colorReliability']) {
+  switch (colorReliability) {
+    case 'good':
+      return 'affidabili'
+    case 'medium':
+      return 'medi'
+    case 'low':
+    default:
+      return 'deboli'
+  }
 }

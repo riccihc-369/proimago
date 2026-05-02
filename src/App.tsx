@@ -7,6 +7,10 @@ import {
 } from './analysis/frameAnalyzer'
 import { PHOTO_CATEGORIES, PHOTO_CATEGORY_BY_ID } from './analysis/photoCategories'
 import { getReferencePreviewHint } from './analysis/previewDecision'
+import {
+  analyzeShootingConditions,
+  getShootingConditionAdvice,
+} from './analysis/shootingConditions'
 import { createSuggestion } from './analysis/suggestionEngine'
 import { useStableSuggestion } from './analysis/useStableSuggestion'
 import { useCamera } from './camera/useCamera'
@@ -131,6 +135,14 @@ function App() {
     [activeCategory, status, visibleAnalysis],
   )
   const stableSuggestion = useStableSuggestion(rawSuggestion, cameraReady)
+  const shootingConditions = useMemo(
+    () => analyzeShootingConditions(visibleAnalysis, activeCategory),
+    [activeCategory, visibleAnalysis],
+  )
+  const shootingConditionAdvice = useMemo(
+    () => getShootingConditionAdvice(shootingConditions, activeCategory),
+    [activeCategory, shootingConditions],
+  )
   const selectedReferencePreview = useMemo(
     () =>
       snapshots.find((snapshot) => snapshot.id === selectedReferencePreviewId) ?? null,
@@ -139,6 +151,7 @@ function App() {
   const referenceHint = selectedReferencePreview
     ? getReferencePreviewHint(selectedReferencePreview)
     : null
+  const conditionPillLabel = getConditionPillLabel(shootingConditions)
 
   const wakeHud = () => {
     if (hudIdleTimerRef.current !== null) {
@@ -209,6 +222,9 @@ function App() {
       suggestionText: stableSuggestion.text,
       suggestionFamily: stableSuggestion.family,
       suggestionSeverity: stableSuggestion.severity,
+      shootingConditions,
+      finalShotReadiness: shootingConditions.finalShotReadiness,
+      conditionAdvice: shootingConditionAdvice,
     })
     if (!snapshot) {
       return
@@ -284,6 +300,7 @@ function App() {
             analysis={visibleAnalysis}
             hudState={hudState}
             suggestion={stableSuggestion}
+            conditionPillLabel={conditionPillLabel}
             hasReferencePreview={Boolean(selectedReferencePreview)}
             referenceHint={referenceHint}
           />
@@ -304,6 +321,8 @@ function App() {
           selectedReferencePreviewId={selectedReferencePreviewId}
           snapshots={snapshots}
           status={status}
+          shootingConditionAdvice={shootingConditionAdvice}
+          shootingConditions={shootingConditions}
           suggestion={stableSuggestion}
           videoHeight={videoMetrics.height}
           videoWidth={videoMetrics.width}
@@ -365,6 +384,24 @@ function getStatusLabel(
     default:
       return 'Avvia la camera per iniziare il framing coach.'
   }
+}
+
+function getConditionPillLabel(
+  shootingConditions: ReturnType<typeof analyzeShootingConditions>,
+) {
+  if (shootingConditions.finalShotReadiness === 'not_ideal') {
+    return 'Scatto finale: rimandabile'
+  }
+
+  if (
+    shootingConditions.lowLight ||
+    shootingConditions.harshLight ||
+    shootingConditions.artificialLightLikely
+  ) {
+    return 'Luce non ideale'
+  }
+
+  return null
 }
 
 export default App

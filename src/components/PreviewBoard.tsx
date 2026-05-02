@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { decideBestPreview, getReferencePreviewHint } from '../analysis/previewDecision'
-import type { SnapshotItem, SuggestionSeverity } from '../types'
+import type { FinalShotReadiness, SnapshotItem, SuggestionSeverity } from '../types'
 
 interface PreviewBoardProps {
   focusPreviewId?: string | null
@@ -106,6 +106,7 @@ export function PreviewBoard({
                   <div className="preview-card-meta">
                     <strong>{`Preview #${index + 1}`}</strong>
                     <span>{formatTimestamp(preview.createdAt)}</span>
+                    <span>{`Stato ${formatFinalShotReadiness(preview.finalShotReadiness)}`}</span>
                     <p>{preview.suggestionText}</p>
                   </div>
 
@@ -176,6 +177,11 @@ function PreviewDetail({
         </div>
 
         <p className="sheet-body-copy">{preview.suggestionText}</p>
+
+        <div className="preview-condition-callout">
+          <strong>{`Condizioni: ${formatFinalShotReadiness(preview.finalShotReadiness)}`}</strong>
+          <p>{preview.conditionAdvice}</p>
+        </div>
 
         {isReference ? (
           <div className="preview-reference-callout">
@@ -279,5 +285,17 @@ function getFamilyLabel(family: SnapshotItem['suggestionFamily']) {
     case 'category':
     default:
       return 'Categoria'
+  }
+}
+
+function formatFinalShotReadiness(readiness: FinalShotReadiness) {
+  switch (readiness) {
+    case 'good':
+      return 'buona'
+    case 'usable':
+      return 'usabile'
+    case 'not_ideal':
+    default:
+      return 'non ideale'
   }
 }
