@@ -1,4 +1,4 @@
-import type { ShootingConditions } from '../types'
+import type { PhotoCategoryId, ShootingConditions } from '../types'
 
 export interface FinalReadinessSummary {
   baseScoreLabel: string
@@ -7,9 +7,16 @@ export interface FinalReadinessSummary {
   finalReadinessReason: string
 }
 
+interface FinalReadinessContext {
+  categoryId?: PhotoCategoryId
+  highlightClipping?: number
+  shadowClipping?: number
+}
+
 export function getFinalReadinessSummary(
   baseScore: number,
   shootingConditions: ShootingConditions,
+  context: FinalReadinessContext = {},
 ): FinalReadinessSummary {
   const baseScoreLabel = `Base ${Math.round(baseScore)}`
 
@@ -30,7 +37,7 @@ export function getFinalReadinessSummary(
       baseScoreLabel,
       finalReadinessLabel: 'Usabile',
       finalReadinessTone: 'warn',
-      finalReadinessReason: getUsableReason(baseScore, shootingConditions),
+      finalReadinessReason: getUsableReason(baseScore, shootingConditions, context),
     }
   }
 
@@ -38,11 +45,20 @@ export function getFinalReadinessSummary(
     baseScoreLabel,
     finalReadinessLabel: 'Rimandabile',
     finalReadinessTone: 'bad',
-    finalReadinessReason: getRimandabileReason(baseScore, shootingConditions),
+    finalReadinessReason: getRimandabileReason(baseScore, shootingConditions, context),
   }
 }
 
-function getUsableReason(baseScore: number, shootingConditions: ShootingConditions) {
+function getUsableReason(
+  baseScore: number,
+  shootingConditions: ShootingConditions,
+  context: FinalReadinessContext,
+) {
+  const highlightReason = getHighlightReason(context, false)
+  if (highlightReason) {
+    return highlightReason
+  }
+
   if (shootingConditions.lowLight) {
     return baseScore >= 72
       ? 'Composizione buona: migliora luce prima dello scatto finale.'
@@ -64,7 +80,18 @@ function getUsableReason(baseScore: number, shootingConditions: ShootingConditio
   return 'Buona base di preview: rifinisci ancora un poco prima dello scatto finale.'
 }
 
-function getRimandabileReason(baseScore: number, shootingConditions: ShootingConditions) {
+function getRimandabileReason(
+  baseScore: number,
+  shootingConditions: ShootingConditions,
+  context: FinalReadinessContext,
+) {
+  const highlightReason = getHighlightReason(context, true)
+  if (highlightReason) {
+    return baseScore >= 72
+      ? `Buona base, ma non ancora scatto finale. ${highlightReason}`
+      : highlightReason
+  }
+
   if (shootingConditions.lowLight) {
     return baseScore >= 72
       ? 'Buona base, ma non ancora scatto finale. Scena troppo scura.'
@@ -86,4 +113,46 @@ function getRimandabileReason(baseScore: number, shootingConditions: ShootingCon
   }
 
   return 'Buona base, ma non ancora scatto finale.'
+}
+
+function getHighlightReason(context: FinalReadinessContext, isRimandabile: boolean) {
+  const highlightClipping = context.highlightClipping ?? 0
+  const reflectiveCategory =
+    context.categoryId === 'product' ||
+    context.categoryId === 'food' ||
+    context.categoryId === 'portrait'
+  const architectureCategory =
+    context.categoryId === 'architecture' || context.categoryId === 'interiors'
+
+  if (highlightClipping >= 4 && highlightClipping >= (reflectiveCategory ? 6 : 8)) {
+    if (context.categoryId === 'product') {
+      return isRimandabile
+        ? 'Scatto finale rimandabile: riflessi troppo forti, etichetta o superficie possono perdere dettaglio.'
+        : 'Base buona, ma riflessi troppo forti: etichetta o superficie possono perdere dettaglio.'
+    }
+
+    if (reflectiveCategory) {
+      return isRimandabile
+        ? 'Scatto finale rimandabile: riflessi troppo forti o alte luci bruciate.'
+        : 'Base buona, ma riflessi troppo forti sulle zone chiare.'
+    }
+
+    if (architectureCategory) {
+      return isRimandabile
+        ? 'Scatto finale rimandabile: dettagli chiari persi nelle alte luci.'
+        : 'Base buona, ma alcune zone chiare stanno perdendo dettaglio.'
+    }
+
+    return isRimandabile
+      ? 'Scatto finale rimandabile: alte luci bruciate.'
+      : 'Base buona, ma le alte luci sono ancora troppo spinte.'
+  }
+
+  if (context.shadowClipping && context.shadowClipping >= 18) {
+    return isRimandabile
+      ? 'Scatto finale rimandabile: ombre troppo chiuse.'
+      : 'Base buona, ma le ombre stanno chiudendo troppo dettaglio.'
+  }
+
+  return null
 }

@@ -24,7 +24,6 @@ interface ControlPanelProps {
   canStop: boolean
   canCapture: boolean
   detailPanel: DetailPanelId | null
-  focusedPreviewId: string | null
   finalReadinessSummary: FinalReadinessSummary
   hudState: HudState
   intervalMs: number
@@ -38,7 +37,6 @@ interface ControlPanelProps {
   videoHeight: number
   videoWidth: number
   onDeletePreview: (previewId: string) => void
-  onOpenPreviewBoard: (previewId?: string) => void
   onSelectReferencePreview: (previewId: string) => void
   onSetZoom: (value: number) => Promise<CameraControlResult>
   onSetTorch: (on: boolean) => Promise<CameraControlResult>
@@ -63,7 +61,6 @@ export function ControlPanel({
   canStop,
   canCapture,
   detailPanel,
-  focusedPreviewId,
   finalReadinessSummary,
   hudState,
   intervalMs,
@@ -77,7 +74,6 @@ export function ControlPanel({
   videoHeight,
   videoWidth,
   onDeletePreview,
-  onOpenPreviewBoard,
   onSelectReferencePreview,
   onSetZoom,
   onSetTorch,
@@ -108,7 +104,7 @@ export function ControlPanel({
 
           <div className="detail-sheet-header">
             <div>
-              <span className="detail-sheet-kicker">PROimago V0.1.8</span>
+              <span className="detail-sheet-kicker">PROimago V0.1.9</span>
               <h2>{getPanelTitle(detailPanel)}</h2>
               <p>{getPanelSubtitle(detailPanel)}</p>
             </div>
@@ -138,7 +134,6 @@ export function ControlPanel({
                 canStart={canStart}
                 canStop={canStop}
                 category={category}
-                focusedPreviewId={focusedPreviewId}
                 finalReadinessSummary={finalReadinessSummary}
                 intervalMs={intervalMs}
                 isFieldActive={isFieldActive}
@@ -187,14 +182,7 @@ export function ControlPanel({
           label="Altro"
           meta={isFieldActive ? toolsMeta : 'setup'}
           isActive={detailPanel === 'tools'}
-          onClick={() => {
-            if (snapshots.length > 0) {
-              onOpenPreviewBoard()
-              return
-            }
-
-            onOpenDetailPanel('tools')
-          }}
+          onClick={() => onOpenDetailPanel('tools')}
         />
       </div>
     </section>
@@ -263,13 +251,14 @@ function CategoryPanel({ category, categories, onSelectCategory }: CategoryPanel
   )
 }
 
+type ToolsTabId = 'finale' | 'preview' | 'camera' | 'debug'
+
 interface ToolsPanelProps {
   analysis: FrameAnalysis
   cameraInfo: CameraTrackInfo | null
   canStart: boolean
   canStop: boolean
   category: PhotoCategory
-  focusedPreviewId: string | null
   finalReadinessSummary: FinalReadinessSummary
   intervalMs: number
   isFieldActive: boolean
@@ -298,7 +287,6 @@ function ToolsPanel({
   canStart,
   canStop,
   category,
-  focusedPreviewId,
   finalReadinessSummary,
   intervalMs,
   isFieldActive,
@@ -320,198 +308,328 @@ function ToolsPanel({
   onSetFocusMode,
   onResetCameraControls,
 }: ToolsPanelProps) {
+  const [activeTab, setActiveTab] = useState<ToolsTabId>('finale')
   const composition = getCompositionScore(analysis)
   const aspectRatio =
     videoWidth > 0 && videoHeight > 0 ? (videoWidth / videoHeight).toFixed(2) : '--'
   const cameraLabel = cameraInfo?.facingMode ?? cameraInfo?.label ?? 'n/d'
   const controlSupport = cameraInfo?.controlSupport
   const settings = cameraInfo?.settings
+  const favoritesCount = snapshots.filter((snapshot) => snapshot.isFavorite).length
 
   return (
     <div className="sheet-layout">
-      <section className="sheet-section">
-        <PreviewBoard
-          focusPreviewId={focusedPreviewId}
-          previews={snapshots}
-          selectedReferencePreviewId={selectedReferencePreviewId}
-          onDeletePreview={onDeletePreview}
-          onSelectReference={onSelectReferencePreview}
-          onToggleFavorite={onToggleFavoritePreview}
+      <div className="sheet-tab-row" role="tablist" aria-label="Sezioni tools">
+        <ToolsTabButton
+          tabId="finale"
+          label="Finale"
+          isActive={activeTab === 'finale'}
+          onClick={() => setActiveTab('finale')}
         />
-      </section>
-
-      <section className="sheet-section">
-        <div className="sheet-inline-header">
-          <strong>Suggerimento attivo</strong>
-          <span className={`sheet-badge ${suggestion.severity}`}>
-            {getSeverityLabel(suggestion.severity)}
-          </span>
-        </div>
-        <p className="sheet-body-copy">{suggestion.text}</p>
-        <div className="sheet-detail-list">
-          <span className="sheet-chip">Categoria {category.label}</span>
-          <span className="sheet-chip">Famiglia {getFamilyLabel(suggestion.family)}</span>
-        </div>
-      </section>
-
-      <section className="sheet-section">
-        <div className="sheet-inline-header">
-          <strong>Diagnostics</strong>
-          <span>{`refresh ${intervalMs} ms`}</span>
-        </div>
-        <div className="tools-grid">
-          <MetricTile label="Base" value={`${analysis.score}`} tone={getScoreTone(analysis.score)} />
-          <MetricTile
-            label="Composizione"
-            value={`${composition}`}
-            tone={getScoreTone(composition)}
-          />
-          <MetricTile
-            label="Luce"
-            value={`${analysis.brightness}%`}
-            tone={getMetricTone(analysis.brightness, 28, 46)}
-          />
-          <MetricTile
-            label="Contrasto"
-            value={`${analysis.contrast}%`}
-            tone={getMetricTone(analysis.contrast, 24, 42)}
-          />
-          <MetricTile
-            label="Saturazione"
-            value={`${analysis.saturation}%`}
-            tone={getSaturationTone(analysis.saturation)}
-          />
-          <MetricTile
-            label="Nitidezza"
-            value={`${analysis.sharpness}`}
-            tone={getSharpnessTone(analysis.sharpness)}
-          />
-          <MetricTile
-            label="Clutter"
-            value={`${analysis.backgroundClutter}`}
-            tone={getClutterTone(analysis.backgroundClutter)}
-          />
-          <MetricTile
-            label="Dominante"
-            value={analysis.colorTemperatureHint ?? '--'}
-            tone={analysis.colorTemperatureHint === 'warm' ? 'warn' : 'good'}
-          />
-        </div>
-      </section>
-
-      <section className="sheet-section">
-        <div className="sheet-inline-header">
-          <strong>Scatto finale</strong>
-          <span>{finalReadinessSummary.finalReadinessLabel}</span>
-        </div>
-        <p className="sheet-body-copy">{finalReadinessSummary.finalReadinessReason}</p>
-        <div className="sheet-detail-list">
-          <span className="sheet-chip">{finalReadinessSummary.baseScoreLabel}</span>
-          <span className={`sheet-badge ${getReadinessTone(shootingConditions.finalShotReadiness)}`}>
-            {`Finale ${finalReadinessSummary.finalReadinessLabel}`}
-          </span>
-          <span className="sheet-chip">
-            {`Stabilita ${formatStabilityHint(shootingConditions.stabilityHint)}`}
-          </span>
-          <span className="sheet-chip">
-            {`Colori ${formatColorReliability(shootingConditions.colorReliability)}`}
-          </span>
-          {shootingConditions.lowLight ? <span className="sheet-chip">Poca luce</span> : null}
-          {shootingConditions.harshLight ? <span className="sheet-chip">Luce dura</span> : null}
-          {shootingConditions.artificialLightLikely ? (
-            <span className="sheet-chip">Luce artificiale probabile</span>
-          ) : null}
-        </div>
-        <p className="sheet-support-note">{`Azione consigliata: ${shootingConditionAdvice}`}</p>
-      </section>
-
-      <section className="sheet-section">
-        <div className="sheet-inline-header">
-          <strong>Camera</strong>
-          <span>controlli dinamici</span>
-        </div>
-        <p className="sheet-body-copy">
-          PROimago tiene i controlli camera nel pannello Tools per lasciare il live HUD leggero.
-        </p>
-        <CameraControlsSection
-          key={getCameraControlsKey(cameraInfo)}
-          cameraInfo={cameraInfo}
-          onResetCameraControls={onResetCameraControls}
-          onSetExposureCompensation={onSetExposureCompensation}
-          onSetFocusMode={onSetFocusMode}
-          onSetTorch={onSetTorch}
-          onSetZoom={onSetZoom}
+        <ToolsTabButton
+          tabId="preview"
+          label={snapshots.length > 0 ? `Preview ${snapshots.length}` : 'Preview'}
+          isActive={activeTab === 'preview'}
+          onClick={() => setActiveTab('preview')}
         />
-      </section>
+        <ToolsTabButton
+          tabId="camera"
+          label="Camera"
+          isActive={activeTab === 'camera'}
+          onClick={() => setActiveTab('camera')}
+        />
+        <ToolsTabButton
+          tabId="debug"
+          label="Debug"
+          isActive={activeTab === 'debug'}
+          onClick={() => setActiveTab('debug')}
+        />
+      </div>
 
-      <section className="sheet-section">
-        <div className="sheet-inline-header">
-          <strong>Camera Info</strong>
-          <span>{cameraLabel}</span>
-        </div>
-        <div className="tools-grid">
-          <MetricTile label="Zoom" value={formatSupportValue(controlSupport?.supportsZoom)} tone="good" />
-          <MetricTile label="Torch" value={formatSupportValue(controlSupport?.supportsTorch)} tone="good" />
-          <MetricTile
-            label="Exposure"
-            value={formatSupportValue(controlSupport?.supportsExposureCompensation)}
-            tone="good"
-          />
-          <MetricTile
-            label="Focus"
-            value={formatSupportValue(controlSupport?.supportsFocusMode)}
-            tone="good"
-          />
-          <MetricTile
-            label="Bil. bianco"
-            value={formatSupportValue(controlSupport?.supportsWhiteBalanceMode)}
-            tone="good"
-          />
-          <MetricTile
-            label="Facing"
-            value={controlSupport?.facingMode ?? cameraLabel}
-            tone="good"
-          />
-          <MetricTile
-            label="Risoluzione"
-            value={videoWidth > 0 && videoHeight > 0 ? `${videoWidth} x ${videoHeight}` : '--'}
-            tone="good"
-          />
-          <MetricTile
-            label="Settings"
-            value={formatResolutionSettings(controlSupport)}
-            tone="good"
-          />
-          <MetricTile label="Frame rate" value={formatFrameRate(settings?.frameRate)} tone="good" />
-          <MetricTile label="Aspect" value={aspectRatio} tone="good" />
-        </div>
-      </section>
+      {activeTab === 'finale' ? (
+        <>
+          <section className="sheet-section">
+            <div className="sheet-inline-header">
+              <strong>Scatto finale</strong>
+              <span>{finalReadinessSummary.finalReadinessLabel}</span>
+            </div>
+            <p className="sheet-body-copy">{finalReadinessSummary.finalReadinessReason}</p>
+            <div className="sheet-detail-list">
+              <span className="sheet-chip">{finalReadinessSummary.baseScoreLabel}</span>
+              <span className={`sheet-badge ${getReadinessTone(shootingConditions.finalShotReadiness)}`}>
+                {`Finale ${finalReadinessSummary.finalReadinessLabel}`}
+              </span>
+              <span className="sheet-chip">
+                {`Stabilita ${formatStabilityHint(shootingConditions.stabilityHint)}`}
+              </span>
+              <span className="sheet-chip">
+                {`Colori ${formatColorReliability(shootingConditions.colorReliability)}`}
+              </span>
+              {shootingConditions.lowLight ? <span className="sheet-chip">Poca luce</span> : null}
+              {shootingConditions.harshLight ? <span className="sheet-chip">Luce dura</span> : null}
+              {shootingConditions.artificialLightLikely ? (
+                <span className="sheet-chip">Luce artificiale probabile</span>
+              ) : null}
+              {analysis.highlightClipping >= 4 ? (
+                <span className="sheet-chip">{`Alte luci ${analysis.highlightClipping}`}</span>
+              ) : null}
+            </div>
+            <p className="sheet-support-note">{`Azione consigliata: ${shootingConditionAdvice}`}</p>
+          </section>
 
-      <section className="sheet-section">
-        <div className="sheet-inline-header">
-          <strong>Azioni camera</strong>
-          <span>{isFieldActive ? 'live view' : 'pronta'}</span>
-        </div>
-        <div className="sheet-action-row">
-          <button
-            type="button"
-            className="sheet-action-button accent"
-            onClick={() => void onStart()}
-            disabled={!canStart}
-          >
-            Avvia camera
-          </button>
-          <button
-            type="button"
-            className="sheet-action-button"
-            onClick={onStop}
-            disabled={!canStop}
-          >
-            Stop camera
-          </button>
-        </div>
-      </section>
+          <section className="sheet-section">
+            <div className="sheet-inline-header">
+              <strong>Suggerimento attivo</strong>
+              <span className={`sheet-badge ${suggestion.severity}`}>
+                {getSeverityLabel(suggestion.severity)}
+              </span>
+            </div>
+            <p className="sheet-body-copy">{suggestion.text}</p>
+            <div className="sheet-detail-list">
+              <span className="sheet-chip">Categoria {category.label}</span>
+              <span className="sheet-chip">Famiglia {getFamilyLabel(suggestion.family)}</span>
+              <span className="sheet-chip">{`Preview ${snapshots.length}`}</span>
+              {favoritesCount > 0 ? <span className="sheet-chip">{`Preferite ${favoritesCount}`}</span> : null}
+              {selectedReferencePreviewId ? (
+                <span className="sheet-chip">Riferimento attivo</span>
+              ) : null}
+            </div>
+            {snapshots.length > 0 ? (
+              <div className="sheet-action-row">
+                <button
+                  type="button"
+                  className="sheet-action-button"
+                  onClick={() => setActiveTab('preview')}
+                >
+                  Apri anteprime
+                </button>
+              </div>
+            ) : null}
+          </section>
+        </>
+      ) : null}
+
+      {activeTab === 'preview' ? (
+        <>
+          <section className="sheet-section">
+            <div className="sheet-inline-header">
+              <strong>Preview Board</strong>
+              <span>{favoritesCount > 0 ? `${favoritesCount} preferite` : 'sessione locale'}</span>
+            </div>
+            <p className="sheet-body-copy">
+              Confronta basi diverse, scegli una preferita e usa un riferimento senza lasciare la live view.
+            </p>
+            <div className="sheet-detail-list">
+              {selectedReferencePreviewId ? (
+                <span className="sheet-chip">Riferimento attivo</span>
+              ) : (
+                <span className="sheet-chip">Nessun riferimento attivo</span>
+              )}
+              <span className="sheet-chip">{`Preview ${snapshots.length}`}</span>
+            </div>
+          </section>
+
+          <section className="sheet-section">
+            <PreviewBoard
+              previews={snapshots}
+              selectedReferencePreviewId={selectedReferencePreviewId}
+              onDeletePreview={onDeletePreview}
+              onSelectReference={onSelectReferencePreview}
+              onToggleFavorite={onToggleFavoritePreview}
+            />
+          </section>
+        </>
+      ) : null}
+
+      {activeTab === 'camera' ? (
+        <>
+          <section className="sheet-section">
+            <div className="sheet-inline-header">
+              <strong>Camera</strong>
+              <span>controlli dinamici</span>
+            </div>
+            <p className="sheet-body-copy">
+              I controlli camera compaiono solo qui, cosi il live HUD resta leggero e pulito.
+            </p>
+            <CameraControlsSection
+              key={getCameraControlsKey(cameraInfo)}
+              cameraInfo={cameraInfo}
+              onResetCameraControls={onResetCameraControls}
+              onSetExposureCompensation={onSetExposureCompensation}
+              onSetFocusMode={onSetFocusMode}
+              onSetTorch={onSetTorch}
+              onSetZoom={onSetZoom}
+            />
+          </section>
+
+          <section className="sheet-section">
+            <div className="sheet-inline-header">
+              <strong>Camera Info</strong>
+              <span>{cameraLabel}</span>
+            </div>
+            <div className="tools-grid">
+              <MetricTile label="Zoom" value={formatSupportValue(controlSupport?.supportsZoom)} tone="good" />
+              <MetricTile label="Torch" value={formatSupportValue(controlSupport?.supportsTorch)} tone="good" />
+              <MetricTile
+                label="Exposure"
+                value={formatSupportValue(controlSupport?.supportsExposureCompensation)}
+                tone="good"
+              />
+              <MetricTile
+                label="Focus"
+                value={formatSupportValue(controlSupport?.supportsFocusMode)}
+                tone="good"
+              />
+              <MetricTile
+                label="Bil. bianco"
+                value={formatSupportValue(controlSupport?.supportsWhiteBalanceMode)}
+                tone="good"
+              />
+              <MetricTile
+                label="Facing"
+                value={controlSupport?.facingMode ?? cameraLabel}
+                tone="good"
+              />
+              <MetricTile
+                label="Risoluzione"
+                value={videoWidth > 0 && videoHeight > 0 ? `${videoWidth} x ${videoHeight}` : '--'}
+                tone="good"
+              />
+              <MetricTile
+                label="Settings"
+                value={formatResolutionSettings(controlSupport)}
+                tone="good"
+              />
+              <MetricTile label="Frame rate" value={formatFrameRate(settings?.frameRate)} tone="good" />
+              <MetricTile label="Aspect" value={aspectRatio} tone="good" />
+            </div>
+          </section>
+
+          <section className="sheet-section">
+            <div className="sheet-inline-header">
+              <strong>Azioni camera</strong>
+              <span>{isFieldActive ? 'live view' : 'pronta'}</span>
+            </div>
+            <div className="sheet-action-row">
+              <button
+                type="button"
+                className="sheet-action-button accent"
+                onClick={() => void onStart()}
+                disabled={!canStart}
+              >
+                Avvia camera
+              </button>
+              <button
+                type="button"
+                className="sheet-action-button"
+                onClick={onStop}
+                disabled={!canStop}
+              >
+                Stop camera
+              </button>
+            </div>
+          </section>
+        </>
+      ) : null}
+
+      {activeTab === 'debug' ? (
+        <>
+          <section className="sheet-section">
+            <div className="sheet-inline-header">
+              <strong>Diagnostics</strong>
+              <span>{`refresh ${intervalMs} ms`}</span>
+            </div>
+            <div className="tools-grid">
+              <MetricTile label="Base" value={`${analysis.score}`} tone={getScoreTone(analysis.score)} />
+              <MetricTile
+                label="Composizione"
+                value={`${composition}`}
+                tone={getScoreTone(composition)}
+              />
+              <MetricTile
+                label="Luce"
+                value={`${analysis.brightness}%`}
+                tone={getMetricTone(analysis.brightness, 28, 46)}
+              />
+              <MetricTile
+                label="Contrasto"
+                value={`${analysis.contrast}%`}
+                tone={getMetricTone(analysis.contrast, 24, 42)}
+              />
+              <MetricTile
+                label="Saturazione"
+                value={`${analysis.saturation}%`}
+                tone={getSaturationTone(analysis.saturation)}
+              />
+              <MetricTile
+                label="Nitidezza"
+                value={`${analysis.sharpness}`}
+                tone={getSharpnessTone(analysis.sharpness)}
+              />
+              <MetricTile
+                label="Clutter"
+                value={`${analysis.backgroundClutter}`}
+                tone={getClutterTone(analysis.backgroundClutter)}
+              />
+              <MetricTile
+                label="Highlights"
+                value={`${analysis.highlightClipping}%`}
+                tone={getHighlightTone(analysis.highlightClipping)}
+              />
+              <MetricTile
+                label="Shadows"
+                value={`${analysis.shadowClipping ?? 0}%`}
+                tone={getShadowTone(analysis.shadowClipping ?? 0)}
+              />
+              <MetricTile
+                label="Dominante"
+                value={analysis.colorTemperatureHint ?? '--'}
+                tone={analysis.colorTemperatureHint === 'warm' ? 'warn' : 'good'}
+              />
+              <MetricTile label="Frame" value={`${videoWidth} x ${videoHeight}`} tone="good" />
+              <MetricTile label="Aspect" value={aspectRatio} tone="good" />
+            </div>
+          </section>
+
+          <section className="sheet-section">
+            <div className="sheet-inline-header">
+              <strong>Frame values</strong>
+              <span>{cameraLabel}</span>
+            </div>
+            <div className="sheet-detail-list">
+              <span className="sheet-chip">{`Dominant x ${analysis.dominantPoint.x.toFixed(2)}`}</span>
+              <span className="sheet-chip">{`Dominant y ${analysis.dominantPoint.y.toFixed(2)}`}</span>
+              <span className="sheet-chip">{`Spread ${analysis.dominantSpread.toFixed(2)}`}</span>
+              <span className="sheet-chip">{`Peso ${analysis.dominantWeight}`}</span>
+              <span className="sheet-chip">{`Top empty ${analysis.topEmptySpace}`}</span>
+              <span className="sheet-chip">{`Categoria ${category.label}`}</span>
+            </div>
+          </section>
+        </>
+      ) : null}
     </div>
+  )
+}
+
+interface ToolsTabButtonProps {
+  tabId: ToolsTabId
+  label: string
+  isActive: boolean
+  onClick: () => void
+}
+
+function ToolsTabButton({ tabId, label, isActive, onClick }: ToolsTabButtonProps) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      id={`tools-tab-${tabId}`}
+      aria-selected={isActive}
+      className={`sheet-tab-button ${isActive ? 'is-active' : ''}`}
+      onClick={onClick}
+    >
+      {label}
+    </button>
   )
 }
 
@@ -775,7 +893,7 @@ function getPanelSubtitle(detailPanel: DetailPanelId) {
       return 'Scegli il tipo di scena senza lasciare la live view.'
     case 'tools':
     default:
-      return 'Final readiness, preview board, camera info e diagnostics senza sporcare la scena.'
+      return 'Finale, preview, camera e debug in un pannello compatto senza sporcare la scena.'
   }
 }
 
@@ -877,6 +995,30 @@ function getClutterTone(value: number) {
   }
 
   if (value > 48) {
+    return 'warn' as const
+  }
+
+  return 'good' as const
+}
+
+function getHighlightTone(value: number) {
+  if (value >= 8) {
+    return 'bad' as const
+  }
+
+  if (value >= 4) {
+    return 'warn' as const
+  }
+
+  return 'good' as const
+}
+
+function getShadowTone(value: number) {
+  if (value >= 20) {
+    return 'bad' as const
+  }
+
+  if (value >= 10) {
     return 'warn' as const
   }
 

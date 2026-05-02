@@ -42,7 +42,6 @@ function App() {
   const [detailPanel, setDetailPanel] = useState<DetailPanelId | null>(null)
   const [areControlsVisible, setAreControlsVisible] = useState(true)
   const [selectedReferencePreviewId, setSelectedReferencePreviewId] = useState<string | null>(null)
-  const [focusedPreviewId, setFocusedPreviewId] = useState<string | null>(null)
 
   const activeCategory = PHOTO_CATEGORY_BY_ID[activeCategoryId]
   const {
@@ -141,12 +140,17 @@ function App() {
     [activeCategory, visibleAnalysis],
   )
   const shootingConditionAdvice = useMemo(
-    () => getShootingConditionAdvice(shootingConditions, activeCategory),
-    [activeCategory, shootingConditions],
+    () => getShootingConditionAdvice(shootingConditions, activeCategory, visibleAnalysis),
+    [activeCategory, shootingConditions, visibleAnalysis],
   )
   const finalReadinessSummary = useMemo(
-    () => getFinalReadinessSummary(visibleAnalysis.score, shootingConditions),
-    [shootingConditions, visibleAnalysis.score],
+    () =>
+      getFinalReadinessSummary(visibleAnalysis.score, shootingConditions, {
+        categoryId: activeCategory.id,
+        highlightClipping: visibleAnalysis.highlightClipping,
+        shadowClipping: visibleAnalysis.shadowClipping,
+      }),
+    [activeCategory.id, shootingConditions, visibleAnalysis.highlightClipping, visibleAnalysis.score, visibleAnalysis.shadowClipping],
   )
   const selectedReferencePreview = useMemo(
     () =>
@@ -197,13 +201,11 @@ function App() {
   }, [cameraReady, detailPanel])
 
   const handleOpenDetailPanel = (nextPanel: DetailPanelId) => {
-    setFocusedPreviewId(null)
     setDetailPanel(nextPanel)
     wakeHud()
   }
 
   const handleCloseDetailPanel = () => {
-    setFocusedPreviewId(null)
     setDetailPanel(null)
     wakeHud()
   }
@@ -221,6 +223,8 @@ function App() {
       contrast: visibleAnalysis.contrast,
       saturation: visibleAnalysis.saturation,
       sharpness: visibleAnalysis.sharpness,
+      highlightClipping: visibleAnalysis.highlightClipping,
+      shadowClipping: visibleAnalysis.shadowClipping,
       colorTemperatureHint: visibleAnalysis.colorTemperatureHint,
       score: visibleAnalysis.score,
       suggestionText: stableSuggestion.text,
@@ -228,6 +232,7 @@ function App() {
       suggestionSeverity: stableSuggestion.severity,
       shootingConditions,
       finalShotReadiness: shootingConditions.finalShotReadiness,
+      finalReadinessReason: finalReadinessSummary.finalReadinessReason,
       conditionAdvice: shootingConditionAdvice,
     })
     if (!snapshot) {
@@ -235,12 +240,6 @@ function App() {
     }
 
     setSnapshots((current) => appendPreview(current, snapshot))
-    wakeHud()
-  }
-
-  const handleOpenPreviewBoard = (previewId?: string) => {
-    setFocusedPreviewId(previewId ?? null)
-    setDetailPanel('tools')
     wakeHud()
   }
 
@@ -257,7 +256,6 @@ function App() {
 
   const handleDeletePreview = (previewId: string) => {
     setSnapshots((current) => current.filter((snapshot) => snapshot.id !== previewId))
-    setFocusedPreviewId((current) => (current === previewId ? null : current))
     setSelectedReferencePreviewId((current) => (current === previewId ? null : current))
     wakeHud()
   }
@@ -279,7 +277,6 @@ function App() {
     setVideoReady(false)
     setVideoMetrics({ width: 0, height: 0 })
     setDetailPanel(null)
-    setFocusedPreviewId(null)
     setAreControlsVisible(true)
   }
 
@@ -318,7 +315,6 @@ function App() {
           canStop={status === 'ready' || status === 'requesting'}
           canCapture={cameraReady}
           detailPanel={detailPanel}
-          focusedPreviewId={focusedPreviewId}
           hudState={hudState}
           intervalMs={FRAME_ANALYSIS_INTERVAL_MS}
           isFieldActive={cameraReady}
@@ -343,7 +339,6 @@ function App() {
           onDeletePreview={handleDeletePreview}
           onCloseDetailPanel={handleCloseDetailPanel}
           onOpenDetailPanel={handleOpenDetailPanel}
-          onOpenPreviewBoard={handleOpenPreviewBoard}
           onSelectReferencePreview={handleSelectReferencePreview}
           onToggleFavoritePreview={handleToggleFavoritePreview}
         />

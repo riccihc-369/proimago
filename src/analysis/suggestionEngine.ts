@@ -86,9 +86,20 @@ function getGeneralSuggestion(
   category: PhotoCategory,
   analysis: FrameAnalysis,
 ): Suggestion | null {
-  if (analysis.brightness > 84 && analysis.contrast < 30) {
+  if (analysis.highlightClipping >= 8 && category.id !== 'product') {
     return buildSuggestion(
       'general-highlights-clipped',
+      'Le alte luci sono troppo forti: cambia angolo o riduci i riflessi diretti.',
+      'warning',
+      'light',
+      98,
+      2600,
+    )
+  }
+
+  if (analysis.brightness > 84 && analysis.contrast < 30) {
+    return buildSuggestion(
+      'general-bright-scene',
       'La scena sembra troppo forte o bruciata: cambia angolo o riduci i riflessi diretti.',
       'warning',
       'light',
@@ -318,8 +329,17 @@ function getLensAdvice(
       if (analysis.dominantSpread < 0.28 || analysis.backgroundClutter > 58) {
         return buildLensAdvice(
           'product-2x',
-          'Avvicinati o usa 2x per isolare meglio il prodotto.',
+          'Se il prodotto e piccolo, avvicinati o usa 2x se disponibile.',
           50,
+          'improve',
+        )
+      }
+
+      if (analysis.highlightClipping >= 6) {
+        return buildLensAdvice(
+          'product-side-light',
+          'Per oggetti lucidi, evita luce diretta frontale.',
+          48,
           'improve',
         )
       }
@@ -643,6 +663,39 @@ function getAnimalsSuggestion(analysis: FrameAnalysis): Suggestion {
 }
 
 function getProductSuggestion(analysis: FrameAnalysis): Suggestion {
+  if (analysis.highlightClipping >= 10) {
+    return buildSuggestion(
+      'product-specular-hotspots',
+      'Riflesso troppo forte: sposta la luce lateralmente o inclina leggermente il prodotto.',
+      'warning',
+      'light',
+      92,
+      3200,
+    )
+  }
+
+  if (analysis.highlightClipping >= 7 && analysis.contrast >= 52) {
+    return buildSuggestion(
+      'product-label-legibility',
+      "L'etichetta perde leggibilita: riduci il riflesso frontale.",
+      'warning',
+      'light',
+      88,
+      3200,
+    )
+  }
+
+  if (analysis.highlightClipping >= 6) {
+    return buildSuggestion(
+      'product-glossy-surface',
+      'Per oggetti lucidi, evita luce diretta frontale.',
+      'improve',
+      'light',
+      82,
+      3000,
+    )
+  }
+
   if (analysis.backgroundClutter > 72 && analysis.dominantWeight < 48) {
     return buildSuggestion(
       'product-surface-cleanup',
@@ -673,10 +726,20 @@ function getProductSuggestion(analysis: FrameAnalysis): Suggestion {
     )
   }
 
+  if (analysis.brightness < 48 || analysis.contrast < 28) {
+    return buildSuggestion(
+      'product-soft-side-light',
+      'Usa luce laterale morbida per mantenere volume e colore.',
+      'improve',
+      'light',
+      68,
+    )
+  }
+
   if (analysis.dominantSpread < 0.24 || analysis.dominantWeight < 42) {
     return buildSuggestion(
       'product-fill',
-      'Avvicinati o usa 2x per isolare meglio il prodotto.',
+      'Se il prodotto e piccolo, avvicinati o usa 2x se disponibile.',
       'improve',
       'framing',
       64,
@@ -705,7 +768,7 @@ function getProductSuggestion(analysis: FrameAnalysis): Suggestion {
 
   return buildSuggestion(
     'product-background',
-    'Semplifica lo sfondo: il prodotto deve dominare.',
+    'Pulisci la superficie e riduci elementi ai bordi.',
     'info',
     'category',
     46,

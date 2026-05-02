@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
 import { getFinalReadinessSummary } from '../analysis/finalReadiness'
 import { decideBestPreview, getReferencePreviewHint } from '../analysis/previewDecision'
+import { canCopyPreviewImage, copyPreviewImage, savePreviewImage, sharePreviewImage } from '../utils/exportPreview'
 import type { FinalShotReadiness, SnapshotItem, SuggestionSeverity } from '../types'
 
 interface PreviewBoardProps {
-  focusPreviewId?: string | null
   previews: SnapshotItem[]
   selectedReferencePreviewId: string | null
   onDeletePreview: (previewId: string) => void
@@ -13,7 +13,6 @@ interface PreviewBoardProps {
 }
 
 export function PreviewBoard({
-  focusPreviewId = null,
   previews,
   selectedReferencePreviewId,
   onDeletePreview,
@@ -21,7 +20,7 @@ export function PreviewBoard({
   onToggleFavorite,
 }: PreviewBoardProps) {
   const decision = useMemo(() => decideBestPreview(previews), [previews])
-  const [openPreviewId, setOpenPreviewId] = useState<string | null>(focusPreviewId)
+  const [openPreviewId, setOpenPreviewId] = useState<string | null>(null)
 
   const bestPreviewIndex = previews.findIndex((preview) => preview.id === decision.bestPreviewId)
   const openPreview = previews.find((preview) => preview.id === openPreviewId) ?? null
@@ -56,7 +55,9 @@ export function PreviewBoard({
 
           {openPreview ? (
             <PreviewDetail
+              key={openPreview.id}
               preview={openPreview}
+              previewNumber={previews.findIndex((preview) => preview.id === openPreview.id) + 1}
               referenceHint={getReferencePreviewHint(openPreview)}
               selectedReferencePreviewId={selectedReferencePreviewId}
               onClose={() => setOpenPreviewId(null)}
@@ -139,6 +140,7 @@ export function PreviewBoard({
 
 interface PreviewDetailProps {
   preview: SnapshotItem
+  previewNumber: number
   referenceHint: string
   selectedReferencePreviewId: string | null
   onClose: () => void
@@ -149,6 +151,7 @@ interface PreviewDetailProps {
 
 function PreviewDetail({
   preview,
+  previewNumber,
   referenceHint,
   selectedReferencePreviewId,
   onClose,
@@ -157,10 +160,33 @@ function PreviewDetail({
   onToggleFavorite,
 }: PreviewDetailProps) {
   const isReference = preview.id === selectedReferencePreviewId
+  const canCopyImage = canCopyPreviewImage()
+  const [exportMessage, setExportMessage] = useState<string | null>(null)
   const finalReadinessSummary = getFinalReadinessSummary(
     preview.score,
     preview.shootingConditions,
+    {
+      categoryId: preview.categoryId,
+      highlightClipping: preview.highlightClipping,
+      shadowClipping: preview.shadowClipping,
+    },
   )
+  const finalReadinessReason = preview.finalReadinessReason || finalReadinessSummary.finalReadinessReason
+
+  const handleSave = async () => {
+    const result = await savePreviewImage(preview)
+    setExportMessage(result.message)
+  }
+
+  const handleShare = async () => {
+    const result = await sharePreviewImage(preview)
+    setExportMessage(result.message)
+  }
+
+  const handleCopy = async () => {
+    const result = await copyPreviewImage(preview)
+    setExportMessage(result.message)
+  }
 
   return (
     <section className="preview-detail-card">
@@ -168,7 +194,7 @@ function PreviewDetail({
 
       <div className="preview-detail-body">
         <div className="sheet-inline-header">
-          <strong>{preview.categoryLabel}</strong>
+          <strong>{`${preview.categoryLabel} · Preview #${previewNumber}`}</strong>
           <span>{finalReadinessSummary.baseScoreLabel}</span>
         </div>
 
@@ -185,10 +211,17 @@ function PreviewDetail({
 
         <div className="preview-condition-callout">
           <strong>{`Finale: ${finalReadinessSummary.finalReadinessLabel}`}</strong>
-          <p>{finalReadinessSummary.finalReadinessReason}</p>
+          <p>{finalReadinessReason}</p>
         </div>
 
         <p className="sheet-support-note">{`Azione consigliata: ${preview.conditionAdvice}`}</p>
+
+        {preview.highlightClipping >= 6 ? (
+          <div className="preview-warning-callout">
+            <strong>Riflessi / alte luci</strong>
+            <p>Attenzione: dettagli chiari persi o troppo compressi.</p>
+          </div>
+        ) : null}
 
         {isReference ? (
           <div className="preview-reference-callout">
@@ -206,6 +239,10 @@ function PreviewDetail({
           {typeof preview.sharpness === 'number' ? (
             <span className="sheet-chip">{`Nit ${preview.sharpness}`}</span>
           ) : null}
+          <span className="sheet-chip">{`Alte luci ${preview.highlightClipping}`}</span>
+          {typeof preview.shadowClipping === 'number' ? (
+            <span className="sheet-chip">{`Ombre ${preview.shadowClipping}`}</span>
+          ) : null}
           {preview.cameraSettings?.zoom ? (
             <span className="sheet-chip">{`Zoom ${formatZoomValue(preview.cameraSettings.zoom)}`}</span>
           ) : null}
@@ -222,25 +259,38 @@ function PreviewDetail({
           ) : null}
         </div>
 
-        <div className="sheet-action-row">
+        <div className="sheet-action-row preview-detail-actions">
+          <button type="button" className="sheet-action-button accent" onClick={() => void handleSave()}>
+            Salva / Esporta
+          </button>
+          <button type="button" className="sheet-action-button" onClick={() => void handleShare()}>
+            Condividi
+          </button>
+          {canCopyImage ? (
+            <button type="button" className="sheet-action-button" onClick={() => void handleCopy()}>
+              Copia immagine
+            </button>
+          ) : null}
           <button type="button" className="sheet-action-button" onClick={onToggleFavorite}>
             {preview.isFavorite ? 'Togli preferita' : 'Preferita'}
           </button>
-          <button type="button" className="sheet-action-button" onClick={onDelete}>
-            Elimina
-          </button>
           <button
             type="button"
-            className="sheet-action-button accent"
+            className="sheet-action-button"
             onClick={onSelectReference}
             disabled={isReference}
           >
             {isReference ? 'Riferimento attivo' : 'Usa come riferimento'}
           </button>
+          <button type="button" className="sheet-action-button" onClick={onDelete}>
+            Elimina
+          </button>
           <button type="button" className="sheet-action-button" onClick={onClose}>
             Chiudi
           </button>
         </div>
+
+        {exportMessage ? <p className="sheet-support-note">{exportMessage}</p> : null}
       </div>
     </section>
   )

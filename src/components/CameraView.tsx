@@ -34,8 +34,8 @@ export function CameraView({
       {showStatus ? (
         <div className="camera-status" role="status" aria-live="polite">
           <div className="camera-status-card">
-            <strong>PROimago V0.1.8</strong>
-            <span>Final Readiness + Product Cleanup</span>
+            <strong>PROimago V0.1.9</strong>
+            <span>Export + Product Light Refinement</span>
             <p>{statusLabel}</p>
           </div>
         </div>

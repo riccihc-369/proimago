@@ -11,6 +11,8 @@ export const EMPTY_FRAME_ANALYSIS: FrameAnalysis = {
   saturation: 0,
   sharpness: 0,
   backgroundClutter: 0,
+  highlightClipping: 0,
+  shadowClipping: 0,
   colorTemperatureHint: undefined,
   dominantWeight: 0,
   topEmptySpace: 0,
@@ -76,6 +78,8 @@ export function analyzeFrame(
   let borderEnergy = 0
   let borderPixelCount = 0
   let borderCrispEdgeCount = 0
+  let highlightPixels = 0
+  let shadowPixels = 0
 
   for (let y = 0; y < SAMPLE_HEIGHT; y += 1) {
     for (let x = 0; x < SAMPLE_WIDTH; x += 1) {
@@ -84,6 +88,8 @@ export function analyzeFrame(
       varianceSum += (value - averageLuminance) ** 2
       minLuma = Math.min(minLuma, value)
       maxLuma = Math.max(maxLuma, value)
+      highlightPixels += value > 245 ? 1 : 0
+      shadowPixels += value < 12 ? 1 : 0
 
       const right = x < SAMPLE_WIDTH - 1 ? luminance[index + 1] : value
       const down = y < SAMPLE_HEIGHT - 1 ? luminance[index + SAMPLE_WIDTH] : value
@@ -145,6 +151,8 @@ export function analyzeFrame(
     0,
     100,
   )
+  const highlightClipping = clamp(Math.round((highlightPixels / pixelCount) * 100), 0, 100)
+  const shadowClipping = clamp(Math.round((shadowPixels / pixelCount) * 100), 0, 100)
   const dominantPoint: Point =
     totalEnergy > 0
       ? {
@@ -183,6 +191,8 @@ export function analyzeFrame(
     saturation,
     sharpness,
     backgroundClutter,
+    highlightClipping,
+    shadowClipping,
     colorTemperatureHint: getColorTemperatureHint(averageRed, averageGreen, averageBlue, saturation),
     dominantWeight,
     topEmptySpace,

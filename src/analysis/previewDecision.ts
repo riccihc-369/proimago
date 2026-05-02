@@ -96,6 +96,20 @@ function scorePreview(preview: SnapshotItem) {
     }
   }
 
+  if (preview.highlightClipping >= 10) {
+    total -= 18
+  } else if (preview.highlightClipping >= 6) {
+    total -= 8
+  }
+
+  if (typeof preview.shadowClipping === 'number') {
+    if (preview.shadowClipping >= 24) {
+      total -= 9
+    } else if (preview.shadowClipping >= 16) {
+      total -= 4
+    }
+  }
+
   if (preview.shootingConditions.lowLight) {
     total -= 9
   }
@@ -111,6 +125,11 @@ function buildDecisionReason(preview: SnapshotItem, fromFavorites: boolean) {
   const finalReadinessSummary = getFinalReadinessSummary(
     preview.score,
     preview.shootingConditions,
+    {
+      categoryId: preview.categoryId,
+      highlightClipping: preview.highlightClipping,
+      shadowClipping: preview.shadowClipping,
+    },
   )
   const reasons: string[] = []
 
@@ -132,6 +151,10 @@ function buildDecisionReason(preview: SnapshotItem, fromFavorites: boolean) {
 
   if (typeof preview.sharpness === 'number' && preview.sharpness >= 48) {
     reasons.push('nitidezza affidabile')
+  }
+
+  if (preview.highlightClipping < 6) {
+    reasons.push('alte luci piu controllate')
   }
 
   if (preview.finalShotReadiness === 'good') {

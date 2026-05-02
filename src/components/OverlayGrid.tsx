@@ -53,6 +53,9 @@ export function OverlayGrid({
               {`Finale: ${finalReadinessSummary.finalReadinessLabel}`}
             </div>
           ) : null}
+          {analysis.highlightClipping >= 6 ? (
+            <div className="condition-pill bad">{getHighlightPillLabel(category.id)}</div>
+          ) : null}
         </div>
         <div className={`score-chip ${getScoreTone(analysis.score)}`}>
           <span>Base</span>
@@ -186,4 +189,16 @@ function getCompositionScore(analysis: FrameAnalysis) {
   return Math.round(
     spreadScore * 0.22 + balanceScore * 0.22 + headroomScore * 0.18 + analysis.score * 0.38,
   )
+}
+
+function getHighlightPillLabel(categoryId: PhotoCategory['id']) {
+  if (
+    categoryId === 'product' ||
+    categoryId === 'food' ||
+    categoryId === 'portrait'
+  ) {
+    return 'Riflessi forti'
+  }
+
+  return 'Alte luci'
 }

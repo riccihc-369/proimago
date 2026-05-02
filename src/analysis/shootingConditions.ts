@@ -5,18 +5,26 @@ export function analyzeShootingConditions(
   category: PhotoCategory,
 ): ShootingConditions {
   const sharpnessPriority = needsSharpnessPriority(category.id)
+  const highlightSensitiveCategory = needsHighlightPriority(category.id)
   const lowLightThreshold = sharpnessPriority ? 34 : 30
   const unstableSharpnessThreshold = sharpnessPriority ? 42 : 32
   const acceptableSharpnessThreshold = sharpnessPriority ? 58 : 48
+  const strongHighlightThreshold = highlightSensitiveCategory ? 6 : 9
+  const mediumHighlightThreshold = highlightSensitiveCategory ? 3 : 5
 
   const lowLight =
     frameAnalysis.brightness < lowLightThreshold ||
     (frameAnalysis.brightness < lowLightThreshold + 6 &&
       frameAnalysis.sharpness < acceptableSharpnessThreshold)
 
+  const strongHighlights = frameAnalysis.highlightClipping >= strongHighlightThreshold
+  const mediumHighlights = frameAnalysis.highlightClipping >= mediumHighlightThreshold
+
   const harshLight =
     frameAnalysis.contrast > 66 ||
-    (frameAnalysis.brightness > 78 && frameAnalysis.contrast > 52)
+    (frameAnalysis.brightness > 78 && frameAnalysis.contrast > 52) ||
+    strongHighlights ||
+    (mediumHighlights && frameAnalysis.contrast > 58)
 
   const artificialLightLikely =
     frameAnalysis.colorTemperatureHint === 'warm'
@@ -44,11 +52,13 @@ export function analyzeShootingConditions(
     stabilityHint === 'unstable' ||
     (lowLight && frameAnalysis.score < 62) ||
     colorReliability === 'low' ||
+    (strongHighlights && (highlightSensitiveCategory || frameAnalysis.score < 76)) ||
     (harshLight && frameAnalysis.score < 72)
       ? 'not_ideal'
       : lowLight ||
           harshLight ||
           artificialLightLikely ||
+          mediumHighlights ||
           stabilityHint === 'acceptable' ||
           frameAnalysis.score < 72
         ? 'usable'
@@ -67,6 +77,7 @@ export function analyzeShootingConditions(
 export function getShootingConditionAdvice(
   conditions: ShootingConditions,
   category: PhotoCategory,
+  frameAnalysis?: FrameAnalysis,
 ) {
   switch (category.id) {
     case 'plants':
@@ -90,6 +101,11 @@ export function getShootingConditionAdvice(
 
     case 'product':
     case 'food':
+      if (frameAnalysis && isStrongHighlightScene(frameAnalysis, category.id)) {
+        return category.id === 'product'
+          ? 'Riflesso troppo forte: sposta la luce lateralmente o inclina leggermente il prodotto.'
+          : 'Cerca luce morbida laterale: migliora volume, colore e alte luci.'
+      }
       if (conditions.harshLight || conditions.artificialLightLikely) {
         return 'Cerca luce morbida laterale: migliora volume e colore.'
       }
@@ -108,7 +124,7 @@ export function getShootingConditionAdvice(
       return getGenericConditionAdvice(conditions)
 
     default:
-      return getGenericConditionAdvice(conditions)
+      return getGenericConditionAdvice(conditions, frameAnalysis, category.id)
   }
 }
 
@@ -150,7 +166,32 @@ function needsSharpnessPriority(categoryId: PhotoCategory['id']) {
   )
 }
 
-function getGenericConditionAdvice(conditions: ShootingConditions) {
+function needsHighlightPriority(categoryId: PhotoCategory['id']) {
+  return (
+    categoryId === 'product' ||
+    categoryId === 'food' ||
+    categoryId === 'portrait' ||
+    categoryId === 'architecture' ||
+    categoryId === 'interiors'
+  )
+}
+
+function isStrongHighlightScene(
+  frameAnalysis: FrameAnalysis,
+  categoryId: PhotoCategory['id'],
+) {
+  return frameAnalysis.highlightClipping >= (needsHighlightPriority(categoryId) ? 6 : 9)
+}
+
+function getGenericConditionAdvice(
+  conditions: ShootingConditions,
+  frameAnalysis?: FrameAnalysis,
+  categoryId: PhotoCategory['id'] = 'auto',
+) {
+  if (frameAnalysis && isStrongHighlightScene(frameAnalysis, categoryId)) {
+    return 'Le alte luci sono troppo forti: cambia angolo o ammorbidisci la luce prima dello scatto finale.'
+  }
+
   if (conditions.finalShotReadiness === 'not_ideal') {
     if (conditions.lowLight) {
       return 'Le condizioni sono ancora deboli: prova con piu luce prima dello scatto finale.'

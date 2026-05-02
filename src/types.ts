@@ -66,6 +66,8 @@ export interface FrameAnalysis {
   saturation: number
   sharpness: number
   backgroundClutter: number
+  highlightClipping: number
+  shadowClipping?: number
   colorTemperatureHint?: ColorTemperatureHint
   dominantWeight: number
   topEmptySpace: number
@@ -115,6 +117,8 @@ export interface SnapshotCapturePayload {
   contrast: number
   saturation: number
   sharpness?: number
+  highlightClipping: number
+  shadowClipping?: number
   colorTemperatureHint?: ColorTemperatureHint
   score: number
   suggestionText: string
@@ -122,6 +126,7 @@ export interface SnapshotCapturePayload {
   suggestionSeverity: SuggestionSeverity
   shootingConditions: ShootingConditions
   finalShotReadiness: FinalShotReadiness
+  finalReadinessReason: string
   conditionAdvice: string
   cameraSettings?: SnapshotCameraSettings
 }
@@ -141,13 +146,30 @@ export interface SnapshotItem {
   contrast: number
   saturation: number
   sharpness?: number
+  highlightClipping: number
+  shadowClipping?: number
   colorTemperatureHint?: ColorTemperatureHint
   shootingConditions: ShootingConditions
   finalShotReadiness: FinalShotReadiness
+  finalReadinessReason: string
   conditionAdvice: string
   isFavorite: boolean
   note?: string
   cameraSettings?: SnapshotCameraSettings
+}
+
+export type PreviewExportStatus =
+  | 'idle'
+  | 'saved'
+  | 'shared'
+  | 'copied'
+  | 'opened'
+  | 'error'
+
+export interface ExportResult {
+  ok: boolean
+  status: PreviewExportStatus
+  message: string
 }
 
 export interface CameraNumericCapability {
