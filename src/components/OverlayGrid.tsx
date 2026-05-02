@@ -1,9 +1,10 @@
+import type { FinalReadinessSummary } from '../analysis/finalReadiness'
 import type { FrameAnalysis, HudState, PhotoCategory, Suggestion } from '../types'
 
 interface OverlayGridProps {
   analysis: FrameAnalysis
   category: PhotoCategory
-  conditionPillLabel?: string | null
+  finalReadinessSummary: FinalReadinessSummary
   hasReferencePreview?: boolean
   hudState: HudState
   referenceHint?: string | null
@@ -13,7 +14,7 @@ interface OverlayGridProps {
 export function OverlayGrid({
   analysis,
   category,
-  conditionPillLabel = null,
+  finalReadinessSummary,
   hasReferencePreview = false,
   hudState,
   referenceHint = null,
@@ -47,12 +48,14 @@ export function OverlayGrid({
           {hasReferencePreview ? (
             <div className="reference-pill">Riferimento attivo</div>
           ) : null}
-          {conditionPillLabel ? (
-            <div className="condition-pill">{conditionPillLabel}</div>
+          {finalReadinessSummary.finalReadinessLabel !== 'Pronto' ? (
+            <div className={`condition-pill ${finalReadinessSummary.finalReadinessTone}`}>
+              {`Finale: ${finalReadinessSummary.finalReadinessLabel}`}
+            </div>
           ) : null}
         </div>
         <div className={`score-chip ${getScoreTone(analysis.score)}`}>
-          <span>Score</span>
+          <span>Base</span>
           <strong>{analysis.score}</strong>
         </div>
       </div>

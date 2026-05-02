@@ -1,4 +1,4 @@
-const CACHE_NAME = 'proimago-cache-v0.1.7'
+const CACHE_NAME = 'proimago-cache-v0.1.8'
 const ASSETS = ['/site.webmanifest', '/favicon.svg']
 
 self.addEventListener('install', (event) => {

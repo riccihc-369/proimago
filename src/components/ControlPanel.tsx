@@ -1,11 +1,11 @@
 import { useState } from 'react'
+import type { FinalReadinessSummary } from '../analysis/finalReadiness'
 import { PreviewBoard } from './PreviewBoard'
 import type { CameraControlResult } from '../camera/cameraCapabilities'
 import type {
   CameraStatus,
   CameraTrackInfo,
   DetailPanelId,
-  FinalShotReadiness,
   FrameAnalysis,
   HudState,
   PhotoCategory,
@@ -25,6 +25,7 @@ interface ControlPanelProps {
   canCapture: boolean
   detailPanel: DetailPanelId | null
   focusedPreviewId: string | null
+  finalReadinessSummary: FinalReadinessSummary
   hudState: HudState
   intervalMs: number
   isFieldActive: boolean
@@ -63,6 +64,7 @@ export function ControlPanel({
   canCapture,
   detailPanel,
   focusedPreviewId,
+  finalReadinessSummary,
   hudState,
   intervalMs,
   isFieldActive,
@@ -91,55 +93,22 @@ export function ControlPanel({
   onToggleFavoritePreview,
 }: ControlPanelProps) {
   const isDetailOpen = detailPanel !== null
-  const showSecondaryActions = hudState === 'controls'
   const primaryActionDisabled =
     status === 'requesting' || (isFieldActive ? !canCapture : !canStart)
   const primaryActionLabel = status === 'requesting' ? 'Attendi' : isFieldActive ? 'Scatta' : 'Avvia'
   const primaryActionHint = status === 'requesting' ? 'camera' : isFieldActive ? 'preview' : 'live'
   const categoryLabel = category.shortLabel ?? category.label
+  const toolsMeta = snapshots.length > 0 ? `${Math.min(99, snapshots.length)} prev.` : 'tools'
 
   return (
     <section className={`hud-controls hud-${hudState}`} aria-label="Controlli live">
-      {showSecondaryActions ? (
-        <>
-          <div className="hud-quick-actions">
-            <button
-              type="button"
-              className="hud-quick-action"
-              onClick={() => onOpenPreviewBoard()}
-            >
-              Anteprime
-            </button>
-            <button
-              type="button"
-              className="hud-quick-action"
-              onClick={() => onOpenDetailPanel('tools')}
-            >
-              Strumenti
-            </button>
-            <button
-              type="button"
-              className={`hud-quick-action ${isFieldActive ? 'danger' : 'accent'}`}
-              onClick={isFieldActive ? onStop : () => void onStart()}
-              disabled={isFieldActive ? !canStop : !canStart}
-            >
-              {isFieldActive ? 'Stop camera' : 'Avvia camera'}
-            </button>
-          </div>
-
-          {snapshots.length > 0 ? (
-            <PreviewQuickStrip previews={snapshots} onOpenPreview={onOpenPreviewBoard} />
-          ) : null}
-        </>
-      ) : null}
-
-            {isDetailOpen ? (
+      {isDetailOpen ? (
         <div className="detail-sheet" id="detail-sheet" role="dialog" aria-modal="false">
           <div className="detail-sheet-handle" aria-hidden="true" />
 
           <div className="detail-sheet-header">
             <div>
-              <span className="detail-sheet-kicker">PROimago V0.1.7</span>
+              <span className="detail-sheet-kicker">PROimago V0.1.8</span>
               <h2>{getPanelTitle(detailPanel)}</h2>
               <p>{getPanelSubtitle(detailPanel)}</p>
             </div>
@@ -170,6 +139,7 @@ export function ControlPanel({
                 canStop={canStop}
                 category={category}
                 focusedPreviewId={focusedPreviewId}
+                finalReadinessSummary={finalReadinessSummary}
                 intervalMs={intervalMs}
                 isFieldActive={isFieldActive}
                 selectedReferencePreviewId={selectedReferencePreviewId}
@@ -215,46 +185,17 @@ export function ControlPanel({
 
         <ActionBarButton
           label="Altro"
-          meta={isFieldActive ? 'tools' : 'setup'}
+          meta={isFieldActive ? toolsMeta : 'setup'}
           isActive={detailPanel === 'tools'}
-          onClick={() => onOpenDetailPanel('tools')}
+          onClick={() => {
+            if (snapshots.length > 0) {
+              onOpenPreviewBoard()
+              return
+            }
+
+            onOpenDetailPanel('tools')
+          }}
         />
-      </div>
-    </section>
-  )
-}
-
-interface PreviewQuickStripProps {
-  previews: SnapshotItem[]
-  onOpenPreview: (previewId?: string) => void
-}
-
-function PreviewQuickStrip({ previews, onOpenPreview }: PreviewQuickStripProps) {
-  return (
-    <section className="preview-quick-strip" aria-label="Ultime anteprime">
-      <div className="preview-quick-strip-header">
-        <strong>Ultime preview</strong>
-        <button type="button" className="sheet-link-button" onClick={() => onOpenPreview()}>
-          Apri board
-        </button>
-      </div>
-
-      <div className="preview-quick-strip-list">
-        {previews.slice(0, 5).map((preview, index) => (
-          <button
-            key={preview.id}
-            type="button"
-            className={`preview-quick-item ${preview.isFavorite ? 'is-favorite' : ''}`}
-            onClick={() => onOpenPreview(preview.id)}
-            aria-label={`Apri preview ${index + 1}`}
-          >
-            <img
-              src={preview.thumbnailDataUrl ?? preview.imageDataUrl}
-              alt={`Preview ${index + 1}`}
-            />
-            <span className="preview-quick-score">{preview.score}</span>
-          </button>
-        ))}
       </div>
     </section>
   )
@@ -329,6 +270,7 @@ interface ToolsPanelProps {
   canStop: boolean
   category: PhotoCategory
   focusedPreviewId: string | null
+  finalReadinessSummary: FinalReadinessSummary
   intervalMs: number
   isFieldActive: boolean
   selectedReferencePreviewId: string | null
@@ -357,6 +299,7 @@ function ToolsPanel({
   canStop,
   category,
   focusedPreviewId,
+  finalReadinessSummary,
   intervalMs,
   isFieldActive,
   selectedReferencePreviewId,
@@ -417,7 +360,7 @@ function ToolsPanel({
           <span>{`refresh ${intervalMs} ms`}</span>
         </div>
         <div className="tools-grid">
-          <MetricTile label="Score" value={`${analysis.score}`} tone={getScoreTone(analysis.score)} />
+          <MetricTile label="Base" value={`${analysis.score}`} tone={getScoreTone(analysis.score)} />
           <MetricTile
             label="Composizione"
             value={`${composition}`}
@@ -444,6 +387,11 @@ function ToolsPanel({
             tone={getSharpnessTone(analysis.sharpness)}
           />
           <MetricTile
+            label="Clutter"
+            value={`${analysis.backgroundClutter}`}
+            tone={getClutterTone(analysis.backgroundClutter)}
+          />
+          <MetricTile
             label="Dominante"
             value={analysis.colorTemperatureHint ?? '--'}
             tone={analysis.colorTemperatureHint === 'warm' ? 'warn' : 'good'}
@@ -453,13 +401,14 @@ function ToolsPanel({
 
       <section className="sheet-section">
         <div className="sheet-inline-header">
-          <strong>Condizioni di scatto</strong>
-          <span>{formatFinalShotReadiness(shootingConditions.finalShotReadiness)}</span>
+          <strong>Scatto finale</strong>
+          <span>{finalReadinessSummary.finalReadinessLabel}</span>
         </div>
-        <p className="sheet-body-copy">{shootingConditionAdvice}</p>
+        <p className="sheet-body-copy">{finalReadinessSummary.finalReadinessReason}</p>
         <div className="sheet-detail-list">
+          <span className="sheet-chip">{finalReadinessSummary.baseScoreLabel}</span>
           <span className={`sheet-badge ${getReadinessTone(shootingConditions.finalShotReadiness)}`}>
-            {formatFinalShotReadiness(shootingConditions.finalShotReadiness)}
+            {`Finale ${finalReadinessSummary.finalReadinessLabel}`}
           </span>
           <span className="sheet-chip">
             {`Stabilita ${formatStabilityHint(shootingConditions.stabilityHint)}`}
@@ -473,6 +422,7 @@ function ToolsPanel({
             <span className="sheet-chip">Luce artificiale probabile</span>
           ) : null}
         </div>
+        <p className="sheet-support-note">{`Azione consigliata: ${shootingConditionAdvice}`}</p>
       </section>
 
       <section className="sheet-section">
@@ -825,7 +775,7 @@ function getPanelSubtitle(detailPanel: DetailPanelId) {
       return 'Scegli il tipo di scena senza lasciare la live view.'
     case 'tools':
     default:
-      return 'Preview board, condizioni di scatto, camera info e diagnostics senza sporcare la scena.'
+      return 'Final readiness, preview board, camera info e diagnostics senza sporcare la scena.'
   }
 }
 
@@ -843,7 +793,7 @@ function getSeverityLabel(severity: Suggestion['severity']) {
   }
 }
 
-function getReadinessTone(readiness: FinalShotReadiness) {
+function getReadinessTone(readiness: ShootingConditions['finalShotReadiness']) {
   switch (readiness) {
     case 'good':
       return 'good' as const
@@ -921,6 +871,18 @@ function getSharpnessTone(value: number) {
   return 'good' as const
 }
 
+function getClutterTone(value: number) {
+  if (value > 68) {
+    return 'bad' as const
+  }
+
+  if (value > 48) {
+    return 'warn' as const
+  }
+
+  return 'good' as const
+}
+
 function getCompositionScore(analysis: FrameAnalysis) {
   const spreadScore = Math.min(100, Math.round(analysis.dominantSpread * 180))
   const centerOffset = Math.hypot(analysis.dominantPoint.x - 0.5, analysis.dominantPoint.y - 0.5)
@@ -988,18 +950,6 @@ function formatControlValue(value: number | undefined) {
 
 function getUnsupportedControlCopy() {
   return 'Controllo non disponibile in questo browser. PROimago puo comunque suggerire come usare la lente o cambiare angolo.'
-}
-
-function formatFinalShotReadiness(readiness: FinalShotReadiness) {
-  switch (readiness) {
-    case 'good':
-      return 'buona'
-    case 'usable':
-      return 'usabile'
-    case 'not_ideal':
-    default:
-      return 'non ideale'
-  }
 }
 
 function formatStabilityHint(stabilityHint: ShootingConditions['stabilityHint']) {

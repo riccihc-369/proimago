@@ -315,6 +315,15 @@ function getLensAdvice(
         42,
       )
     case 'product':
+      if (analysis.dominantSpread < 0.28 || analysis.backgroundClutter > 58) {
+        return buildLensAdvice(
+          'product-2x',
+          'Avvicinati o usa 2x per isolare meglio il prodotto.',
+          50,
+          'improve',
+        )
+      }
+
       if (analysis.brightness < 38) {
         return buildLensAdvice(
           'product-flash',
@@ -634,20 +643,50 @@ function getAnimalsSuggestion(analysis: FrameAnalysis): Suggestion {
 }
 
 function getProductSuggestion(analysis: FrameAnalysis): Suggestion {
+  if (analysis.backgroundClutter > 72 && analysis.dominantWeight < 48) {
+    return buildSuggestion(
+      'product-surface-cleanup',
+      'Pulisci la superficie attorno al prodotto.',
+      'warning',
+      'category',
+      72,
+    )
+  }
+
+  if (analysis.backgroundClutter > 62) {
+    return buildSuggestion(
+      'product-background-dominance',
+      'Semplifica lo sfondo: il prodotto deve dominare.',
+      'warning',
+      'category',
+      70,
+    )
+  }
+
+  if (analysis.contrast > 72 && analysis.brightness > 62) {
+    return buildSuggestion(
+      'product-reflections',
+      "Evita riflessi diretti sull'etichetta.",
+      'improve',
+      'light',
+      66,
+    )
+  }
+
   if (analysis.dominantSpread < 0.24 || analysis.dominantWeight < 42) {
     return buildSuggestion(
       'product-fill',
-      'Avvicinati: il prodotto deve occupare piu spazio.',
+      'Avvicinati o usa 2x per isolare meglio il prodotto.',
       'improve',
       'framing',
       64,
     )
   }
 
-  if (isEdgeHeavy(analysis)) {
+  if (isEdgeHeavy(analysis) || analysis.backgroundClutter > 54) {
     return buildSuggestion(
       'product-edges',
-      "Pulisci i bordi dell'inquadratura.",
+      'Riduci elementi secondari ai bordi.',
       'improve',
       'framing',
       60,
@@ -666,7 +705,7 @@ function getProductSuggestion(analysis: FrameAnalysis): Suggestion {
 
   return buildSuggestion(
     'product-background',
-    'Cerca uno sfondo piu neutro.',
+    'Semplifica lo sfondo: il prodotto deve dominare.',
     'info',
     'category',
     46,

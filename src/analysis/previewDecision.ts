@@ -1,3 +1,4 @@
+import { getFinalReadinessSummary } from './finalReadiness'
 import type { SnapshotItem } from '../types'
 
 export interface PreviewDecisionRank {
@@ -107,7 +108,15 @@ function scorePreview(preview: SnapshotItem) {
 }
 
 function buildDecisionReason(preview: SnapshotItem, fromFavorites: boolean) {
+  const finalReadinessSummary = getFinalReadinessSummary(
+    preview.score,
+    preview.shootingConditions,
+  )
   const reasons: string[] = []
+
+  if (preview.score >= 72 && preview.finalShotReadiness === 'not_ideal') {
+    reasons.push('buona base, ma non ancora scatto finale')
+  }
 
   if (preview.score >= 72) {
     reasons.push('composizione solida')
@@ -132,7 +141,7 @@ function buildDecisionReason(preview: SnapshotItem, fromFavorites: boolean) {
   }
 
   const conciseReason =
-    reasons.slice(0, 2).join(' e ') || 'buon equilibrio tra composizione e luce'
+    reasons.slice(0, 2).join(' e ') || finalReadinessSummary.finalReadinessReason.toLowerCase()
 
   return fromFavorites
     ? `tra le preferite, ${conciseReason}`

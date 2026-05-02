@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 
-const SERVICE_WORKER_URL = '/sw.js?v=0.1.7'
+const SERVICE_WORKER_URL = '/sw.js?v=0.1.8'
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

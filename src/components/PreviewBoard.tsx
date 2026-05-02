@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { getFinalReadinessSummary } from '../analysis/finalReadiness'
 import { decideBestPreview, getReferencePreviewHint } from '../analysis/previewDecision'
 import type { FinalShotReadiness, SnapshotItem, SuggestionSeverity } from '../types'
 
@@ -90,7 +91,7 @@ export function PreviewBoard({
                     />
                     <div className="preview-card-topline">
                       <span className="sheet-chip">{preview.categoryLabel}</span>
-                      <span className="sheet-chip">{`Score ${preview.score}`}</span>
+                      <span className="sheet-chip">{`Base ${preview.score}`}</span>
                     </div>
                     <div className="preview-card-flags">
                       {isBest ? <span className="sheet-badge info">Base migliore</span> : null}
@@ -106,7 +107,7 @@ export function PreviewBoard({
                   <div className="preview-card-meta">
                     <strong>{`Preview #${index + 1}`}</strong>
                     <span>{formatTimestamp(preview.createdAt)}</span>
-                    <span>{`Stato ${formatFinalShotReadiness(preview.finalShotReadiness)}`}</span>
+                    <span>{`Finale ${formatFinalShotReadiness(preview.finalShotReadiness)}`}</span>
                     <p>{preview.suggestionText}</p>
                   </div>
 
@@ -156,6 +157,10 @@ function PreviewDetail({
   onToggleFavorite,
 }: PreviewDetailProps) {
   const isReference = preview.id === selectedReferencePreviewId
+  const finalReadinessSummary = getFinalReadinessSummary(
+    preview.score,
+    preview.shootingConditions,
+  )
 
   return (
     <section className="preview-detail-card">
@@ -164,7 +169,7 @@ function PreviewDetail({
       <div className="preview-detail-body">
         <div className="sheet-inline-header">
           <strong>{preview.categoryLabel}</strong>
-          <span>{`Score ${preview.score}`}</span>
+          <span>{finalReadinessSummary.baseScoreLabel}</span>
         </div>
 
         <div className="sheet-detail-list">
@@ -179,9 +184,11 @@ function PreviewDetail({
         <p className="sheet-body-copy">{preview.suggestionText}</p>
 
         <div className="preview-condition-callout">
-          <strong>{`Condizioni: ${formatFinalShotReadiness(preview.finalShotReadiness)}`}</strong>
-          <p>{preview.conditionAdvice}</p>
+          <strong>{`Finale: ${finalReadinessSummary.finalReadinessLabel}`}</strong>
+          <p>{finalReadinessSummary.finalReadinessReason}</p>
         </div>
+
+        <p className="sheet-support-note">{`Azione consigliata: ${preview.conditionAdvice}`}</p>
 
         {isReference ? (
           <div className="preview-reference-callout">
@@ -191,7 +198,8 @@ function PreviewDetail({
         ) : null}
 
         <div className="preview-detail-metrics">
-          <span className="sheet-chip">{`Composizione / Score ${preview.score}`}</span>
+          <span className="sheet-chip">{finalReadinessSummary.baseScoreLabel}</span>
+          <span className="sheet-chip">{`Finale ${finalReadinessSummary.finalReadinessLabel}`}</span>
           <span className="sheet-chip">{`Luce ${preview.brightness}`}</span>
           <span className="sheet-chip">{`Contrasto ${preview.contrast}`}</span>
           <span className="sheet-chip">{`Sat ${preview.saturation}`}</span>
@@ -291,11 +299,11 @@ function getFamilyLabel(family: SnapshotItem['suggestionFamily']) {
 function formatFinalShotReadiness(readiness: FinalShotReadiness) {
   switch (readiness) {
     case 'good':
-      return 'buona'
+      return 'Pronto'
     case 'usable':
-      return 'usabile'
+      return 'Usabile'
     case 'not_ideal':
     default:
-      return 'non ideale'
+      return 'Rimandabile'
   }
 }

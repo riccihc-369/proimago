@@ -10,6 +10,7 @@ export const EMPTY_FRAME_ANALYSIS: FrameAnalysis = {
   contrast: 0,
   saturation: 0,
   sharpness: 0,
+  backgroundClutter: 0,
   colorTemperatureHint: undefined,
   dominantWeight: 0,
   topEmptySpace: 0,
@@ -72,6 +73,9 @@ export function analyzeFrame(
   let highFrequencyEnergy = 0
   let crispEdgeCount = 0
   let localContrastEnergy = 0
+  let borderEnergy = 0
+  let borderPixelCount = 0
+  let borderCrispEdgeCount = 0
 
   for (let y = 0; y < SAMPLE_HEIGHT; y += 1) {
     for (let x = 0; x < SAMPLE_WIDTH; x += 1) {
@@ -92,6 +96,11 @@ export function analyzeFrame(
         topEnergy += energy
       }
 
+      if (isBorderBand(x, y)) {
+        borderEnergy += energy
+        borderPixelCount += 1
+      }
+
       if (x > 0 && x < SAMPLE_WIDTH - 1 && y > 0 && y < SAMPLE_HEIGHT - 1) {
         const left = luminance[index - 1]
         const up = luminance[index - SAMPLE_WIDTH]
@@ -101,6 +110,9 @@ export function analyzeFrame(
 
         if (laplacian > 18) {
           crispEdgeCount += 1
+          if (isBorderBand(x, y)) {
+            borderCrispEdgeCount += 1
+          }
         }
       }
     }
@@ -112,12 +124,23 @@ export function analyzeFrame(
   const averageHighFrequency = highFrequencyEnergy / interiorPixelCount
   const crispEdgeShare = crispEdgeCount / interiorPixelCount
   const averageLocalContrast = localContrastEnergy / (interiorPixelCount * 2)
+  const averageBorderEnergy = borderEnergy / Math.max(1, borderPixelCount)
+  const borderCrispShare = borderCrispEdgeCount / Math.max(1, borderPixelCount)
   const sharpness = clamp(
     Math.round(
       averageHighFrequency * 1.9 +
         crispEdgeShare * 34 +
         Math.min(16, averageLocalContrast * 0.28) -
         Math.max(0, 18 - contrast) * 0.35,
+      ),
+    0,
+    100,
+  )
+  const backgroundClutter = clamp(
+    Math.round(
+      averageBorderEnergy * 1.55 +
+        borderCrispShare * 42 +
+        Math.max(0, averageLocalContrast - 10) * 0.45,
     ),
     0,
     100,
@@ -159,6 +182,7 @@ export function analyzeFrame(
     contrast,
     saturation,
     sharpness,
+    backgroundClutter,
     colorTemperatureHint: getColorTemperatureHint(averageRed, averageGreen, averageBlue, saturation),
     dominantWeight,
     topEmptySpace,
@@ -206,4 +230,13 @@ function getColorTemperatureHint(
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
+}
+
+function isBorderBand(x: number, y: number) {
+  return (
+    x < SAMPLE_WIDTH * 0.18 ||
+    x >= SAMPLE_WIDTH * 0.82 ||
+    y < SAMPLE_HEIGHT * 0.18 ||
+    y >= SAMPLE_HEIGHT * 0.82
+  )
 }

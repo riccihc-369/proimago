@@ -65,6 +65,7 @@ export interface FrameAnalysis {
   contrast: number
   saturation: number
   sharpness: number
+  backgroundClutter: number
   colorTemperatureHint?: ColorTemperatureHint
   dominantWeight: number
   topEmptySpace: number
